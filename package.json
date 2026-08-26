@@ -1,0 +1,21 @@
+{
+  "name": "mobinx-admin-console",
+  "version": "1.0.0",
+  "description": "Master SaaS Admin Panel for Mobin X Gaming Ecosystem",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "mobinx",
+    "admin",
+    "gaming",
+    "tournaments",
+    "firebase",
+    "saas"
+  ],
+  "author": "Mr Mobin",
+  "license": "ISC"
+}

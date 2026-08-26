@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mobin X — Master Admin Control Console</title>
+  
+  <meta name="description" content="Master SaaS Admin Panel for Mobin X Gaming Ecosystem. Control tournaments, release custom room IDs, manage APK downloads, hero banners, and diamond deals.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+  <div class="admin-layout">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="admin-sidebar" id="admin-sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M4 5L12 13L20 5V19H16V10L12 14L8 10V19H4V5Z" fill="#ffffff"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>MOBIN X</h1>
+          <span>ADMIN CONSOLE</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-menu">
+        <div class="menu-label">Main Dashboard</div>
+        <div class="nav-item active" data-tab="overview">
+          <span class="icon">📊</span>
+          <span>Overview</span>
+          <span class="badge">Live</span>
+        </div>
+
+        <div class="menu-label">Gaming Operations</div>
+        <div class="nav-item" data-tab="tournaments">
+          <span class="icon">🏆</span>
+          <span>Tournaments & Rooms</span>
+          <span class="badge">Instant</span>
+        </div>
+
+        <div class="nav-item" data-tab="downloads">
+          <span class="icon">📥</span>
+          <span>APK Downloads</span>
+        </div>
+
+        <div class="nav-item" data-tab="flash">
+          <span class="icon">⚡</span>
+          <span>Flash Diamond Deals</span>
+        </div>
+
+        <div class="menu-label">App Content & Sliders</div>
+        <div class="nav-item" data-tab="banners">
+          <span class="icon">🖼️</span>
+          <span>Hero Banners</span>
+        </div>
+
+        <div class="nav-item" data-tab="urls">
+          <span class="icon">📢</span>
+          <span>Notices & Gateways</span>
+        </div>
+
+        <div class="menu-label">Community</div>
+        <div class="nav-item" data-tab="users">
+          <span class="icon">👥</span>
+          <span>Players & Wallets</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <img src="https://api.dicebear.com/7.x/bottts/svg?seed=MobinAdmin" alt="Admin" class="admin-avatar" />
+        <div class="admin-meta">
+          <div class="name">Mr. Mobin (Admin)</div>
+          <div class="role">Master Administrator</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main class="admin-main">
+      
+      <!-- Top Application Bar -->
+      <header class="admin-topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-toggle" id="mobile-toggle-btn" aria-label="Toggle Navigation">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <div class="page-heading">
+            <h2 id="current-page-title">Dashboard Overview</h2>
+            <p>Real-Time Command & Control Center for Mobin X Ecosystem</p>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Real-Time Sync Indicator -->
+          <div class="realtime-pill" id="sync-status-indicator">
+            <span class="pulse-dot"></span>
+            <span>Real-Time Sync Ready</span>
+          </div>
+
+          <!-- Quick link to open client app -->
+          <a href="http://localhost:5173/" target="_blank" class="btn-open-app" title="Preview Mobin X Client App">
+            📱 Open App Preview
+          </a>
+        </div>
+      </header>
+
+      <!-- Dynamic Tab Content Render Root -->
+      <div id="tab-content-area" class="admin-content"></div>
+
+    </main>
+
+  </div>
+
+  <!-- Global Toast Notification Container -->
+  <div id="toast-container" class="admin-toast-container"></div>
+
+  <!-- Application Logic -->
+  <script type="module" src="js/adminApp.js"></script>
+</body>
+</html>
