@@ -562,6 +562,38 @@ textarea.form-control {
   background: var(--border-color);
 }
 
+/* Mode Selectable High-Contrast Pills (Solo, Duo, Squad) */
+.mode-select-pill {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  background: #0f172a;
+  color: #94a3b8;
+  border: 1.5px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-select-pill:hover {
+  border-color: #3b82f6;
+  color: #ffffff;
+  background: #1e293b;
+}
+
+.mode-select-pill.active {
+  background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%) !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
+}
+
 /* Room Credentials Releaser Highlight Box */
 .room-releaser-box {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 182, 212, 0.08) 100%);
