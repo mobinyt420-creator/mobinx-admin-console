@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "Master SaaS Admin Panel for Mobin X Gaming Ecosystem",
   "type": "module",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "echo 'Static build ready'"
   },
   "keywords": [
     "mobinx",
