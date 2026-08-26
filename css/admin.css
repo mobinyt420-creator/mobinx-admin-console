@@ -590,6 +590,41 @@ textarea.form-control {
   background: var(--bg-card-hover);
 }
 
+/* Player Management Cards */
+.player-management-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  transition: all 0.2s ease;
+}
+
+.player-management-card:hover {
+  border-color: #3b82f6;
+  background: var(--bg-card-hover);
+}
+
+.btn-copy-tag {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-copy-tag:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
 /* Toast Notification */
 .admin-toast-container {
   position: fixed;

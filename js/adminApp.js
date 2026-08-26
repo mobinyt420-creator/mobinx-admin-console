@@ -30,7 +30,7 @@ async function initFirebase() {
   try {
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
     const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
-    const { getFirestore, doc, setDoc, deleteDoc, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    const { getFirestore, doc, setDoc, deleteDoc, collection, getDocs, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
 
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
@@ -39,6 +39,38 @@ async function initFirebase() {
 
     console.log('⚡ Firebase Cloud Connected to Project:', firebaseConfig.projectId);
     updateFirebaseStatusBadge(true);
+
+    // Live Snapshot Listener for Real-Time Registered Players
+    onSnapshot(collection(db, 'users'), (snapshot) => {
+      const liveUsers = [];
+      snapshot.forEach(docSnap => {
+        liveUsers.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveUsers.length > 0) {
+        state.users = liveUsers;
+        setStorage('mobinx_registered_users', state.users);
+        state.metrics.totalUsers = liveUsers.length;
+        if (state.activeTab === 'users' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('Users onSnapshot notice:', err.message));
+
+    // Live Snapshot Listener for Tournaments
+    onSnapshot(collection(db, 'tournaments'), (snapshot) => {
+      const liveTourns = [];
+      snapshot.forEach(docSnap => {
+        liveTourns.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveTourns.length > 0) {
+        state.tournaments = liveTourns;
+        setStorage('mobinx_tournaments_data', state.tournaments);
+        if (state.activeTab === 'tournaments' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('Tournaments onSnapshot notice:', err.message));
+
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
     console.warn('Firebase connection note (operating with local sync bridge):', err.message);
@@ -104,33 +136,7 @@ const defaultTournaments = [
     entryFee: "Free",
     status: "UPCOMING",
     slotsTotal: 48,
-    slotsFilled: 24,
-    banner: "assets/images/banner_esports.jpg",
-    isRoomReleased: true,
-    roomId: "MX-88942",
-    roomPass: "1234",
-    participants: [
-      { playerName: "Tanvir_Sniper", ffUid: "1092837482", phone: "01799887766", slot: 1 },
-      { playerName: "Shanto_Headshot", ffUid: "9283746152", phone: "01611223344", slot: 2 },
-      { playerName: "Rifat_Booyah", ffUid: "4829104829", phone: "01933445566", slot: 3 }
-    ]
-  },
-  {
-    id: "tourn-2",
-    title: "All-Stars Clash Squad Championship",
-    gameMode: "Squad (4v4)",
-    map: "Kalahari",
-    matchTime: "10:30 PM Tonight",
-    startTimestamp: Date.now() + 10800000,
-    prizePool: "৳2,500",
-    prize1st: "৳1,800",
-    prize2nd: "৳700",
-    prize3rd: "",
-    prizeKill: "৳50 / MVP",
-    entryFee: "Free",
-    status: "UPCOMING",
-    slotsTotal: 16,
-    slotsFilled: 12,
+    slotsFilled: 0,
     banner: "assets/images/banner_esports.jpg",
     isRoomReleased: false,
     roomId: "",
@@ -153,20 +159,6 @@ const defaultDownloads = [
       { id: "act-2", label: "UID Unlock Tool", url: "https://mrmobin.blogspot.com/2024/07/uid-unlock.html", icon: "key", type: "key" },
       { id: "act-3", label: "Sound Pack VIP", url: "https://mrmobin.blogspot.com/2024/07/sound.html", icon: "file", type: "file" },
       { id: "act-4", label: "Join Telegram Channel", url: "https://t.me/mobinx_official", icon: "link", type: "external" }
-    ]
-  },
-  {
-    id: "dl-aim-cfg-v4",
-    title: "Free Fire Max VIP Headshot Aim Configuration V4",
-    category: "Tools",
-    youtubeId: "LXb3EKWsInQ",
-    videoThumbnail: "assets/images/banner_yt_mock2.jpg",
-    videoDuration: "12:10",
-    isPinned: false,
-    actionButtons: [
-      { id: "act-1", label: "Config APK Download", url: "https://mrmobin.blogspot.com/2024/07/config.html", icon: "download", type: "download" },
-      { id: "act-2", label: "UID Bypass Tool", url: "https://mrmobin.blogspot.com/2024/07/bypass.html", icon: "key", type: "key" },
-      { id: "act-3", label: "Join Telegram Community", url: "https://t.me/mobinx_official", icon: "link", type: "external" }
     ]
   }
 ];
@@ -199,11 +191,8 @@ const defaultNotices = {
   }
 };
 
-const defaultUsers = [
-  { id: "u-1", fullName: "Tanvir Hossain", username: "Tanvir_Sniper", ffUid: "1092837482", phone: "01799887766", role: "PRO MEMBER", status: "Active", joined: "2026-08-10" },
-  { id: "u-2", fullName: "Nazmul Shanto", username: "Shanto_Headshot", ffUid: "9283746152", phone: "01611223344", role: "VIP MEMBER", status: "Active", joined: "2026-08-15" },
-  { id: "u-3", fullName: "Rifat Ahmed", username: "Rifat_Booyah", ffUid: "4829104829", phone: "01933445566", role: "PLAYER", status: "Active", joined: "2026-08-20" }
-];
+// Zero fake dummy users for Play Store release
+const defaultUsers = [];
 
 function getStorage(key, fallback) {
   try {
@@ -228,11 +217,12 @@ const state = {
   banners: getStorage('mobinx_hero_banners', defaultHeroBanners),
   notices: getStorage('mobinx_notices_config', defaultNotices),
   users: getStorage('mobinx_registered_users', defaultUsers),
+  userSearchQuery: '',
   metrics: {
-    dailyUsers: 428,
-    totalUsers: 3892,
-    weeklyUsers: 1945,
-    monthlyUsers: 3420
+    dailyUsers: 1,
+    totalUsers: getStorage('mobinx_registered_users', []).length || 1,
+    weeklyUsers: 1,
+    monthlyUsers: 1
   }
 };
 
@@ -240,45 +230,29 @@ const state = {
 // 3. TAB RENDERERS
 // ==========================================
 
-// TAB 1: OVERVIEW (User metrics & SVG charts - Wallet pool removed)
+// TAB 1: OVERVIEW
 function renderOverview() {
+  const userCount = state.users.length;
+
   return `
     <div class="tab-pane active" id="tab-overview">
       
-      <!-- Metrics Grid (Wallet Pool Removed -> Real User Metrics Added) -->
+      <!-- Metrics Grid -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">Daily Active Users</div>
-            <div class="stat-val">${state.metrics.dailyUsers}</div>
-            <div class="stat-trend up">↑ +18.4% today</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">👥</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Total Registered Players</div>
-            <div class="stat-val">${state.metrics.totalUsers}</div>
-            <div class="stat-trend up">↑ +142 this week</div>
+            <div class="stat-label">Registered Players</div>
+            <div class="stat-val">${userCount}</div>
+            <div class="stat-trend up">Real-time sync</div>
           </div>
           <div class="stat-icon-wrapper" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">🌐</div>
         </div>
 
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">7-Day Active Users</div>
-            <div class="stat-val">${state.metrics.weeklyUsers}</div>
-            <div class="stat-trend neutral">50% retention</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">📅</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-info">
             <div class="stat-label">Active Tournaments</div>
             <div class="stat-val">${state.tournaments.length}</div>
-            <div class="stat-trend up">Live matches scheduled</div>
+            <div class="stat-trend up">Live matches</div>
           </div>
           <div class="stat-icon-wrapper" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🏆</div>
         </div>
@@ -296,7 +270,7 @@ function renderOverview() {
           <div class="stat-info">
             <div class="stat-label">Real-Time Cloud Sync</div>
             <div class="stat-val" style="color: #10b981;">Active</div>
-            <div class="stat-trend up">Firebase obin-shop connected</div>
+            <div class="stat-trend up">Cloud Firestore live</div>
           </div>
           <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">⚡</div>
         </div>
@@ -309,7 +283,7 @@ function renderOverview() {
         <div class="card" style="margin-bottom: 0;">
           <div class="card-header">
             <div>
-              <div class="card-title">📈 7-Day Player Activity & Registration Trend</div>
+              <div class="card-title">📈 7-Day Player Activity Trend</div>
               <div class="card-subtitle">Real-time daily player engagement across Bangladesh & global</div>
             </div>
             <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-weight: 700;">Live Traffic</span>
@@ -323,18 +297,13 @@ function renderOverview() {
                   <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
                 </linearGradient>
               </defs>
-              <!-- Grid Lines -->
               <line x1="0" y1="30" x2="500" y2="30" stroke="#1e293b" stroke-width="1" stroke-dasharray="4"/>
               <line x1="0" y1="75" x2="500" y2="75" stroke="#1e293b" stroke-width="1" stroke-dasharray="4"/>
               <line x1="0" y1="120" x2="500" y2="120" stroke="#1e293b" stroke-width="1" stroke-dasharray="4"/>
 
-              <!-- Filled Area -->
               <polygon points="0,140 0,110 70,95 150,115 225,70 300,85 385,45 450,55 500,20 500,140" fill="url(#areaGrad)"/>
-
-              <!-- Trend Line -->
               <polyline points="0,110 70,95 150,115 225,70 300,85 385,45 450,55 500,20" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
 
-              <!-- Data Dots -->
               <circle cx="70" cy="95" r="4" fill="#60a5fa" stroke="#ffffff" stroke-width="1.5"/>
               <circle cx="150" cy="115" r="4" fill="#60a5fa" stroke="#ffffff" stroke-width="1.5"/>
               <circle cx="225" cy="70" r="4" fill="#60a5fa" stroke="#ffffff" stroke-width="1.5"/>
@@ -406,8 +375,7 @@ function renderOverview() {
       <!-- Quick Actions Grid -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">⚡ Quick Management Actions</div>
-          <div class="card-subtitle">Instant triggers synced to Cloud Firestore</div>
+          <div class="card-title">⚡ Quick Actions</div>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button class="btn btn-primary" id="btn-quick-schedule-tourn">➕ Schedule New Tournament</button>
@@ -421,7 +389,7 @@ function renderOverview() {
   `;
 }
 
-// TAB 2: TOURNAMENTS & ROOMS (Solo/Duo/Squad + 5 FF Maps + Reverse Countdown + Tiered Prizes)
+// TAB 2: TOURNAMENTS & ROOMS (Instant Cancel/Delete Lifecycle)
 function renderTournaments() {
   const todayIso = new Date().toISOString().slice(0, 16);
 
@@ -534,50 +502,60 @@ function renderTournaments() {
         <div class="card-header">
           <div>
             <div class="card-title">🎮 Active Tournaments & Instant Room Credential Releaser</div>
-            <div class="card-subtitle">Release Room ID & Password here; instantly displayed in all player apps!</div>
+            <div class="card-subtitle">Release Room ID & Password or Cancel/Delete live matches anytime!</div>
           </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 14px;">
-          ${state.tournaments.map(t => `
-            <div style="background: var(--bg-body); border: 1.5px solid ${t.isRoomReleased ? '#10b981' : 'var(--border-color)'}; border-radius: var(--radius-lg); padding: 18px;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <h3 style="font-size: 16px; font-weight: 800; color: #ffffff;">${t.title}</h3>
-                    <span class="badge" style="${t.isRoomReleased ? 'background: rgba(16, 185, 129, 0.2); color: #34d399;' : 'background: rgba(245, 158, 11, 0.2); color: #fbbf24;'} font-weight: 700;">
-                      ${t.isRoomReleased ? '🟢 ROOM ID RELEASED' : '🟡 WAITING FOR MATCH TIME'}
-                    </span>
-                  </div>
-                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-                    🎮 Mode: <strong>${t.gameMode || t.mode}</strong> | 🗺️ Map: <strong>${t.map}</strong> | ⏰ Time: <strong>${t.matchTime}</strong>
-                  </div>
-                  <div style="font-size: 12px; color: #10b981; font-weight: 700; margin-top: 2px;">
-                    🏆 Prize: ${t.prizePool || t.prize1st} ${t.prize2nd ? `| 🥈 2nd: ${t.prize2nd}` : ''} ${t.prizeKill ? `| 🎯 ${t.prizeKill}` : ''}
-                  </div>
-                </div>
-
-                <div style="display: flex; gap: 8px;">
-                  <button class="btn btn-danger btn-delete-tourn" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">🗑️ Delete</button>
-                </div>
-              </div>
-
-              <!-- Live Room ID & Password Releaser Box -->
-              <div class="room-releaser-box">
-                <div style="font-size: 12px; font-weight: 800; color: #34d399; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                  <span>🔑</span>
-                  <span>INSTANT ROOM CREDENTIAL RELEASER</span>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px;">
-                  <input type="text" id="room-id-${t.id}" class="form-control" placeholder="Room ID (e.g. 9841284)" value="${t.roomId || ''}" />
-                  <input type="text" id="room-pass-${t.id}" class="form-control" placeholder="Room Password (e.g. 1234)" value="${t.roomPass || ''}" />
-                  <button class="btn btn-success btn-release-room" data-id="${t.id}">
-                    ${t.isRoomReleased ? '🔄 Update Room' : '📢 Release Room ID Now'}
-                  </button>
-                </div>
-              </div>
+          ${state.tournaments.length === 0 ? `
+            <div style="text-align: center; padding: 24px; color: var(--text-muted);">
+              No active tournaments scheduled. Use the form above to publish a new match!
             </div>
-          `).join('')}
+          ` : state.tournaments.map(t => {
+            const isLive = t.isRoomReleased || (t.startTimestamp && t.startTimestamp <= Date.now());
+
+            return `
+              <div style="background: var(--bg-body); border: 1.5px solid ${isLive ? '#ef4444' : 'var(--border-color)'}; border-radius: var(--radius-lg); padding: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <h3 style="font-size: 16px; font-weight: 800; color: #ffffff;">${t.title}</h3>
+                      <span class="badge" style="${isLive ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(245, 158, 11, 0.2); color: #fbbf24;'} font-weight: 700;">
+                        ${isLive ? '🔴 MATCH IS LIVE / ROOM RELEASED' : '🟡 UPCOMING'}
+                      </span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                      🎮 Mode: <strong>${t.gameMode || t.mode}</strong> | 🗺️ Map: <strong>${t.map}</strong> | ⏰ Time: <strong>${t.matchTime}</strong>
+                    </div>
+                    <div style="font-size: 12px; color: #10b981; font-weight: 700; margin-top: 2px;">
+                      🏆 Prize: ${t.prizePool || t.prize1st} ${t.prize2nd ? `| 🥈 2nd: ${t.prize2nd}` : ''} ${t.prizeKill ? `| 🎯 ${t.prizeKill}` : ''}
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-danger btn-delete-tourn" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
+                      ${isLive ? '🚫 Cancel & Delete Live Match' : '🗑️ Delete Match'}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Live Room ID & Password Releaser Box -->
+                <div class="room-releaser-box" style="${isLive ? 'border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);' : ''}">
+                  <div style="font-size: 12px; font-weight: 800; color: ${isLive ? '#f87171' : '#34d399'}; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span>🔑</span>
+                    <span>INSTANT CUSTOM ROOM CREDENTIALS</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px;">
+                    <input type="text" id="room-id-${t.id}" class="form-control" placeholder="Room ID (e.g. 9841284)" value="${t.roomId || ''}" />
+                    <input type="text" id="room-pass-${t.id}" class="form-control" placeholder="Room Password (e.g. 1234)" value="${t.roomPass || ''}" />
+                    <button class="btn btn-success btn-release-room" data-id="${t.id}">
+                      ${t.isRoomReleased ? '🔄 Update Room ID' : '📢 Release Room ID Now'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
 
@@ -585,7 +563,7 @@ function renderTournaments() {
   `;
 }
 
-// TAB 3: APK DOWNLOADS (Dynamic Action Buttons Repeater + YouTube Preview + Pin to Top)
+// TAB 3: APK DOWNLOADS
 function renderDownloads() {
   return `
     <div class="tab-pane active" id="tab-downloads">
@@ -697,7 +675,7 @@ function renderDownloads() {
   `;
 }
 
-// TAB 4: FLASH DIAMOND DEALS (Edit & Delete modals included)
+// TAB 4: FLASH DIAMOND DEALS
 function renderFlashDeals() {
   return `
     <div class="tab-pane active" id="tab-flash">
@@ -761,7 +739,7 @@ function renderFlashDeals() {
   `;
 }
 
-// TAB 5: HERO & PROMO BANNERS (Image URL/Upload + Redirect Links)
+// TAB 5: HERO & PROMO BANNERS
 function renderBanners() {
   return `
     <div class="tab-pane active" id="tab-banners">
@@ -903,40 +881,136 @@ function renderSystemUrls() {
   `;
 }
 
-// TAB 7: PLAYERS DIRECTORY (Wallet Pool Removed -> Clean Players List)
+// TAB 7: PLAYERS DIRECTORY (Ultra-Professional, Real-Time Cloud Firestore Sync, Copy Buttons)
 function renderUsers() {
+  const query = (state.userSearchQuery || '').toLowerCase().trim();
+  const filtered = state.users.filter(u => {
+    if (!query) return true;
+    const name = (u.fullName || u.username || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const phone = (u.phone || '').toLowerCase();
+    const uid = (u.ffUid || '').toLowerCase();
+    return name.includes(query) || email.includes(query) || phone.includes(query) || uid.includes(query);
+  });
+
   return `
     <div class="tab-pane active" id="tab-users">
       
       <div class="card">
         <div class="card-header">
-          <div class="card-title">👥 Registered Players Directory (${state.users.length})</div>
-          <div class="card-subtitle">Manage registered gamers and Free Fire player accounts</div>
+          <div>
+            <div class="card-title">👥 Registered Players Directory (${state.users.length})</div>
+            <div class="card-subtitle">Real-time live synchronization with Cloud Firestore users database</div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" id="btn-refresh-users" style="padding: 6px 12px; font-size: 12px;">
+              🔄 Refresh From Cloud
+            </button>
+          </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          ${state.users.map(u => `
-            <div class="item-card">
-              <div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-weight: 800; color: #ffffff;">${u.fullName || u.username}</span>
-                  <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">${u.role || 'PLAYER'}</span>
-                  <span class="badge" style="${u.status === 'Suspended' ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(16, 185, 129, 0.2); color: #34d399;'}">
-                    ${u.status || 'Active'}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 3px;">
-                  UID: <strong style="color:#ffffff;">${u.ffUid || 'N/A'}</strong> | Phone: ${u.phone || 'N/A'} | Joined: ${u.joined || 'Recent'}
-                </div>
-              </div>
-              <div style="display: flex; gap: 6px;">
-                <button class="btn btn-secondary btn-toggle-user-status" data-id="${u.id}" style="padding: 4px 8px; font-size: 11px;">
-                  ${u.status === 'Suspended' ? '✅ Activate' : '🚫 Suspend'}
-                </button>
-                <button class="btn btn-danger btn-delete-user" data-id="${u.id}" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+        <!-- Search Players Bar -->
+        <div style="margin-bottom: 14px;">
+          <input type="text" id="input-search-players" class="form-control" placeholder="🔍 Search player by Name, Gmail, Phone number, or Free Fire UID..." value="${state.userSearchQuery || ''}" />
+        </div>
+
+        <!-- Players Cards List -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${filtered.length === 0 ? `
+            <div style="text-align: center; padding: 36px 16px; background: var(--bg-body); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
+              <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
+              <div style="font-size: 15px; font-weight: 800; color: #ffffff;">No Players Registered Yet</div>
+              <div style="font-size: 12px; color: var(--text-muted); max-width: 420px; margin: 4px auto 0 auto;">
+                As soon as users open the app and log in with Google, their Player ID, Gmail, Phone, and Free Fire UID will automatically appear here!
               </div>
             </div>
-          `).join('')}
+          ` : filtered.map((u, idx) => {
+            const playerNum = u.playerNumber || (idx + 1);
+            const playerId = u.id || `USR-${String(playerNum).padStart(3, '0')}`;
+            const avatarUrl = u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username || 'Gamer')}`;
+
+            return `
+              <div class="player-management-card" data-user-id="${u.id}">
+                <!-- Card Header Row -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="badge" style="background: linear-gradient(135deg, #2563eb, #06b6d4); color: #ffffff; font-weight: 900; font-size: 11px; padding: 3px 8px;">
+                      PLAYER #${playerNum}
+                    </span>
+                    <span style="font-size: 11.5px; font-weight: 700; color: var(--cyan); font-family: monospace;">
+                      ${playerId}
+                    </span>
+                  </div>
+                  <span class="badge" style="${u.status === 'Suspended' ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(16, 185, 129, 0.2); color: #34d399;'} font-weight: 800;">
+                    ● ${u.status || 'Active'}
+                  </span>
+                </div>
+
+                <!-- Card Body Details Grid -->
+                <div style="display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
+                  <!-- Avatar -->
+                  <div style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #1e293b; border: 2px solid #3b82f6; flex-shrink: 0;">
+                    <img src="${avatarUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;" />
+                  </div>
+
+                  <!-- Details Column -->
+                  <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="font-size: 15px; font-weight: 800; color: #ffffff;">
+                      ${u.fullName || u.username || 'Free Fire Gamer'}
+                    </div>
+
+                    <!-- Gmail Row with Copy -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                      <span>📧 <strong>Gmail:</strong> ${u.email || 'Not provided'}</span>
+                      ${u.email ? `
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.email}" data-label="Gmail" title="Copy Gmail">
+                          📋 Copy
+                        </button>
+                      ` : ''}
+                    </div>
+
+                    <!-- Phone Row with Copy -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                      <span>📱 <strong>Phone:</strong> ${u.phone || 'Not added'}</span>
+                      ${u.phone ? `
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.phone}" data-label="Phone" title="Copy Phone Number">
+                          📋 Copy
+                        </button>
+                      ` : ''}
+                    </div>
+
+                    <!-- Free Fire UID Row with Copy -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                      <span>🎯 <strong>FF UID:</strong> <strong style="color:#ffffff;">${u.ffUid || 'Not linked'}</strong></span>
+                      ${u.ffUid ? `
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.ffUid}" data-label="Free Fire UID" title="Copy Free Fire UID">
+                          📋 Copy
+                        </button>
+                      ` : ''}
+                    </div>
+
+                    <!-- Device Platform & IP -->
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                      Device: <strong>${u.platform || 'Android Mobile'}</strong> | Joined: <strong>${u.registeredDate || 'Recent'}</strong>
+                    </div>
+                  </div>
+
+                  <!-- Actions Column -->
+                  <div style="display: flex; flex-direction: column; gap: 6px; align-self: center;">
+                    <button class="btn btn-secondary btn-edit-player" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                      ✏️ Edit
+                    </button>
+                    <button class="btn btn-secondary btn-toggle-user-status" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                      ${u.status === 'Suspended' ? '✅ Activate' : '🚫 Suspend'}
+                    </button>
+                    <button class="btn btn-danger btn-delete-user" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
 
@@ -1041,7 +1115,6 @@ function bindCurrentTabEvents() {
     const mode = document.getElementById('new-t-mode').value;
     const map = document.getElementById('new-t-map').value;
     const dtVal = document.getElementById('new-t-datetime').value;
-    const prizeCurr = document.getElementById('new-t-prize-currency').value;
     const prize1st = document.getElementById('new-t-prize-1st').value;
     const prize2nd = document.getElementById('new-t-prize-2nd').value;
     const prize3rd = document.getElementById('new-t-prize-3rd').value;
@@ -1113,15 +1186,18 @@ function bindCurrentTabEvents() {
     });
   });
 
-  // Tournaments: Delete
+  // Tournaments: Delete / Cancel
   document.querySelectorAll('.btn-delete-tourn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
+      const confirmDelete = confirm('Are you sure you want to cancel and delete this tournament? It will be removed from all player apps immediately.');
+      if (!confirmDelete) return;
+
       state.tournaments = state.tournaments.filter(t => t.id !== id);
       setStorage('mobinx_tournaments_data', state.tournaments);
       await deleteFromFirestore('tournaments', id);
       broadcastSync('TOURNAMENTS_UPDATED', { deletedId: id });
-      showToast('Tournament deleted.', 'warning');
+      showToast('Tournament deleted and cancelled.', 'warning');
       renderCurrentTab();
     });
   });
@@ -1354,6 +1430,80 @@ function bindCurrentTabEvents() {
     document.getElementById('push-msg-input').value = '';
   });
 
+  // Players: Search Filter
+  document.getElementById('input-search-players')?.addEventListener('input', (e) => {
+    state.userSearchQuery = e.target.value;
+    renderCurrentTab();
+  });
+
+  // Players: Refresh from Cloud
+  document.getElementById('btn-refresh-users')?.addEventListener('click', async () => {
+    showToast('Syncing players from Cloud Firestore...', 'info');
+    if (db) {
+      try {
+        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const snap = await getDocs(collection(db, 'users'));
+        const usersList = [];
+        snap.forEach(docSnap => usersList.push({ ...docSnap.data(), id: docSnap.id }));
+        state.users = usersList;
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Synced ${usersList.length} players from Firestore!`, 'success');
+        renderCurrentTab();
+      } catch (err) {
+        showToast('Cloud sync note: ' + err.message, 'warning');
+      }
+    }
+  });
+
+  // Players: Copy Field
+  document.querySelectorAll('.btn-copy-field').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const val = btn.dataset.copy;
+      const label = btn.dataset.label || 'Value';
+      if (val && navigator.clipboard) {
+        navigator.clipboard.writeText(val).then(() => {
+          showToast(`Copied ${label}: ${val}`, 'success');
+        }).catch(() => {
+          copyFallback(val, label);
+        });
+      } else if (val) {
+        copyFallback(val, label);
+      }
+    });
+  });
+
+  function copyFallback(text, label) {
+    const temp = document.createElement('input');
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+    showToast(`Copied ${label}: ${text}`, 'success');
+  }
+
+  // Players: Edit Player
+  document.querySelectorAll('.btn-edit-player').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const u = state.users.find(x => x.id === btn.dataset.id);
+      if (u) {
+        const newName = prompt('Edit Player Name / IGN:', u.fullName || u.username);
+        const newPhone = prompt('Edit Phone number:', u.phone || '');
+        const newUid = prompt('Edit Free Fire UID:', u.ffUid || '');
+
+        if (newName !== null) u.fullName = newName;
+        if (newPhone !== null) u.phone = newPhone;
+        if (newUid !== null) u.ffUid = newUid;
+
+        setStorage('mobinx_registered_users', state.users);
+        await syncToFirestore('users', u.id, u);
+        showToast(`Player ${u.fullName} updated!`, 'success');
+        renderCurrentTab();
+      }
+    });
+  });
+
   // Players: Toggle Suspend/Activate
   document.querySelectorAll('.btn-toggle-user-status').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1362,7 +1512,7 @@ function bindCurrentTabEvents() {
         u.status = u.status === 'Suspended' ? 'Active' : 'Suspended';
         setStorage('mobinx_registered_users', state.users);
         await syncToFirestore('users', u.id, u);
-        showToast(`Player ${u.username} status set to ${u.status}!`, 'info');
+        showToast(`Player status set to ${u.status}!`, 'info');
         renderCurrentTab();
       }
     });
@@ -1372,6 +1522,9 @@ function bindCurrentTabEvents() {
   document.querySelectorAll('.btn-delete-user').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
+      const confirmDel = confirm('Are you sure you want to delete this player account?');
+      if (!confirmDel) return;
+
       state.users = state.users.filter(u => u.id !== id);
       setStorage('mobinx_registered_users', state.users);
       await deleteFromFirestore('users', id);
