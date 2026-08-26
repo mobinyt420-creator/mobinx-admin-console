@@ -1002,9 +1002,22 @@ function bindCurrentTabEvents() {
   });
 }
 
-// Bootstrap
-document.addEventListener('DOMContentLoaded', () => {
-  initFirebase();
-  bindNavigation();
-  renderCurrentTab();
-});
+// Robust Bootstrap (Runs immediately if DOM is already parsed)
+function startAdminApp() {
+  try {
+    bindNavigation();
+    renderCurrentTab();
+    initFirebase().catch(e => console.warn('Firebase init:', e));
+  } catch (err) {
+    console.error('Error starting admin app:', err);
+  }
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAdminApp);
+  } else {
+    startAdminApp();
+  }
+}
+
