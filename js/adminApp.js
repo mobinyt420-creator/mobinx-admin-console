@@ -1943,11 +1943,11 @@ function bindCurrentTabEvents() {
     };
 
     setStorage('mobinx_app_update', state.appUpdate);
-    await syncToFirestore('config', 'app_update', state.appUpdate);
-    broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
-
-    showToast('🚀 Play Store Update Alert saved & deployed live to all players!', 'success');
+    showToast(enabled ? '🚀 Play Store Update Alert saved & deployed live!' : 'Update Alert saved (Disabled).', 'success');
     renderCurrentTab();
+
+    syncToFirestore('config', 'app_update', state.appUpdate).catch(err => console.warn(err));
+    broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
   });
 
   // Notices: Broadcast Push Notification
