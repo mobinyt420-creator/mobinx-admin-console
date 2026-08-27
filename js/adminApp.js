@@ -391,97 +391,93 @@ setStorage('mobinx_registered_users', state.users);
 // 3. TAB RENDERERS
 // ==========================================
 
-// TAB 1: OVERVIEW (8 Live Core Metrics: Daily Users, 7-Day Users, Total Users, Downloads & Sync)
+// TAB 1: OVERVIEW (8 Live Core Metrics from Cloud Firestore Backend - Zero Dummy Data)
 function renderOverview() {
   const totalUsers = state.users.length;
-  const activeTodayUsers = Math.max(Math.round(totalUsers * 0.75), 1);
-  const activeWeekUsers = Math.max(Math.round(totalUsers * 1.6), totalUsers + 8);
-
-  const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  const dlLogs = state.downloadLogs || [];
-  const todayDl = dlLogs.filter(d => d.timestamp >= now - oneDayMs).length || 18;
-  const weekDl = dlLogs.filter(d => d.timestamp >= now - 7 * oneDayMs).length || 86;
-  const monthDl = dlLogs.filter(d => d.timestamp >= now - 30 * oneDayMs).length || 395;
-  const totalDl = Math.max(dlLogs.length, 1420) + (todayDl * 3);
+  const activeUsers = state.users.filter(u => u.status !== 'Suspended').length;
+  const tournCount = state.tournaments.length;
+  const dealsCount = state.flashDeals.length;
+  const bannersCount = state.banners.length;
+  const downloadsCount = state.downloads.length;
+  const dlClicks = (state.downloadLogs || []).length;
 
   return `
     <div class="tab-pane active" id="tab-overview">
       
-      <!-- 8 Core Metrics Grid -->
+      <!-- 8 Real Core Metrics Grid -->
       <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
         
-        <!-- Metric 1: Today's Active Users (Daily) -->
+        <!-- Metric 1: Total Registered Users -->
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">Daily Active Users</div>
-            <div class="stat-val" style="color: #f97316;">${activeTodayUsers}</div>
-            <div class="stat-trend up">🔥 Active today players</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🔥</div>
-        </div>
-
-        <!-- Metric 2: 7-Day Active Users -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">7-Day Active Users</div>
-            <div class="stat-val" style="color: #06b6d4;">${activeWeekUsers}</div>
-            <div class="stat-trend up">👥 Weekly active player base</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">👥</div>
-        </div>
-
-        <!-- Metric 3: Total Registered Users -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Total Registered Users</div>
+            <div class="stat-label">Registered Players</div>
             <div class="stat-val" style="color: #10b981;">${totalUsers}</div>
-            <div class="stat-trend up">👑 Cloud Firestore Synced</div>
+            <div class="stat-trend up">👑 Cloud Firestore Live</div>
           </div>
           <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">👑</div>
         </div>
 
-        <!-- Metric 4: Today's Downloads -->
+        <!-- Metric 2: Active Verified Players -->
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">Today's Downloads</div>
-            <div class="stat-val" style="color: #38bdf8;">${todayDl}</div>
-            <div class="stat-trend up">📥 Live dynamic counter</div>
+            <div class="stat-label">Active Players</div>
+            <div class="stat-val" style="color: #06b6d4;">${activeUsers}</div>
+            <div class="stat-trend up">● Verified Online Status</div>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
+          <div class="stat-icon-wrapper" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">👥</div>
         </div>
 
-        <!-- Metric 5: 7-Day Downloads -->
+        <!-- Metric 3: Tournaments Live -->
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">7-Day Downloads</div>
-            <div class="stat-val" style="color: #059669;">${weekDl}</div>
-            <div class="stat-trend up">📊 Past 7 days volume</div>
+            <div class="stat-label">Tournaments Scheduled</div>
+            <div class="stat-val" style="color: #f97316;">${tournCount}</div>
+            <div class="stat-trend up">🏆 Real Cloud Matches</div>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(5, 150, 105, 0.15); color: #059669;">📊</div>
+          <div class="stat-icon-wrapper" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🏆</div>
         </div>
 
-        <!-- Metric 6: 1-Month Downloads -->
+        <!-- Metric 4: Flash Diamond Deals -->
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">1-Month Downloads</div>
-            <div class="stat-val" style="color: #a855f7;">${monthDl}</div>
-            <div class="stat-trend up">📈 Monthly aggregate</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(168, 85, 247, 0.15); color: #a855f7;">📈</div>
-        </div>
-
-        <!-- Metric 7: Total Downloads -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Total Downloads</div>
-            <div class="stat-val" style="color: #f59e0b;">${totalDl}</div>
-            <div class="stat-trend up">⚡ All-time verified total</div>
+            <div class="stat-label">Active Flash Deals</div>
+            <div class="stat-val" style="color: #f59e0b;">${dealsCount}</div>
+            <div class="stat-trend up">⚡ Live Diamond Offers</div>
           </div>
           <div class="stat-icon-wrapper" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⚡</div>
         </div>
 
-        <!-- Metric 8: Cloud Firestore & Sync Health -->
+        <!-- Metric 5: Sliders & Banners -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">Active Hero Banners</div>
+            <div class="stat-val" style="color: #8b5cf6;">${bannersCount}</div>
+            <div class="stat-trend up">🖼️ App Sliders Live</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">🖼️</div>
+        </div>
+
+        <!-- Metric 6: APK Catalog Items -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">APK Catalog Items</div>
+            <div class="stat-val" style="color: #38bdf8;">${downloadsCount}</div>
+            <div class="stat-trend up">📥 Verified APK Packages</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
+        </div>
+
+        <!-- Metric 7: Download Interactions -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">Download Interactions</div>
+            <div class="stat-val" style="color: #059669;">${dlClicks}</div>
+            <div class="stat-trend up">📊 Real-Time Clicks</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(5, 150, 105, 0.15); color: #059669;">📊</div>
+        </div>
+
+        <!-- Metric 8: Cloud Backend Health -->
         <div class="stat-card">
           <div class="stat-info">
             <div class="stat-label">Cloud Backend Health</div>
