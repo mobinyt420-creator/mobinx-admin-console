@@ -67,6 +67,7 @@ async function initFirebase() {
 
     // Known legacy dummy test emails to permanently purge
     const legacyDummyEmails = [
+      'guest@mobinx.app',
       'sakib.rusher@gmail.com',
       'mehedi.ghost@gmail.com',
       'afsana.queenff@gmail.com',
@@ -374,6 +375,7 @@ const state = {
 
 // Immediate Startup Purge: Delete any cached dummy users from state and browser storage
 const legacyDummyEmails = [
+  'guest@mobinx.app',
   'sakib.rusher@gmail.com',
   'mehedi.ghost@gmail.com',
   'afsana.queenff@gmail.com',
