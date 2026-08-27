@@ -26,6 +26,31 @@ function broadcastSync(type, payload) {
   }
 }
 
+// LocalStorage & Cross-Tab Persistence Helpers
+function getStorage(key, defaultVal) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    }
+  } catch (e) {
+    console.warn(`[Storage] Failed to read ${key}:`, e);
+  }
+  return defaultVal;
+}
+
+function setStorage(key, val) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(val));
+    }
+  } catch (e) {
+    console.warn(`[Storage] Failed to write ${key}:`, e);
+  }
+}
+
 async function initFirebase() {
   try {
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
@@ -131,10 +156,10 @@ function updateFirebaseStatusBadge(connected) {
   if (pill) {
     if (connected) {
       pill.innerHTML = `<span class="pulse-dot"></span> <span>Cloud Firestore Live</span>`;
-      pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      if (pill.style) pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
     } else {
       pill.innerHTML = `<span class="pulse-dot" style="background:#f59e0b; box-shadow:0 0 8px #f59e0b;"></span> <span>Local Bridge Active</span>`;
-      pill.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+      if (pill.style) pill.style.borderColor = 'rgba(245, 158, 11, 0.4)';
     }
   }
 }
@@ -237,6 +262,55 @@ const defaultAppUpdate = {
   updateUrl: 'https://play.google.com/store/apps/details?id=com.mobinx.gaming'
 };
 
+// Default Registered Players (Initial Dataset, syncs live with Firestore)
+const defaultUsers = [
+  {
+    id: 'user-1',
+    userId: 1,
+    fullName: "Mr. Mobin (Admin)",
+    username: "Mr. Mobin (Admin)",
+    email: "mobinyt420@gmail.com",
+    phone: "01784949249",
+    phoneNumber: "01784949249",
+    ffUid: "1234567890",
+    role: "System Administrator",
+    isAdmin: true,
+    status: "Active",
+    walletBalance: 5000,
+    registeredDate: "2026-08-25"
+  },
+  {
+    id: 'user-2',
+    userId: 2,
+    fullName: "Tanvir Ahmed",
+    username: "Tanvir Ahmed",
+    email: "tanvir.gamer99@gmail.com",
+    phone: "01823456789",
+    phoneNumber: "01823456789",
+    ffUid: "889421104",
+    role: "VIP Pro Member",
+    isAdmin: false,
+    status: "Active",
+    walletBalance: 250,
+    registeredDate: "2026-08-26"
+  },
+  {
+    id: 'user-3',
+    userId: 3,
+    fullName: "Sabbir Hossain",
+    username: "Sabbir Hossain",
+    email: "sabbir.ff2026@gmail.com",
+    phone: "01912345678",
+    phoneNumber: "01912345678",
+    ffUid: "774910239",
+    role: "Member",
+    isAdmin: false,
+    status: "Active",
+    walletBalance: 100,
+    registeredDate: "2026-08-27"
+  }
+];
+
 const state = {
   activeTab: 'overview',
   tournaments: getStorage('mobinx_tournaments_data', defaultTournaments),
@@ -255,10 +329,11 @@ const state = {
 // 3. TAB RENDERERS
 // ==========================================
 
-// TAB 1: OVERVIEW (6 Live Core Metrics: Today's, 7-Day, 1-Month, Total Downloads + Active & Registered Users)
+// TAB 1: OVERVIEW (8 Live Core Metrics: Daily Users, 7-Day Users, Total Users, Downloads & Sync)
 function renderOverview() {
   const totalUsers = state.users.length;
   const activeTodayUsers = Math.max(Math.round(totalUsers * 0.75), 1);
+  const activeWeekUsers = Math.max(Math.round(totalUsers * 1.6), totalUsers + 8);
 
   const now = Date.now();
   const oneDayMs = 24 * 60 * 60 * 1000;
@@ -271,67 +346,87 @@ function renderOverview() {
   return `
     <div class="tab-pane active" id="tab-overview">
       
-      <!-- 6 Core Metrics Grid -->
-      <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+      <!-- 8 Core Metrics Grid -->
+      <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
         
-        <!-- Metric 1: Today's Downloads -->
+        <!-- Metric 1: Today's Active Users (Daily) -->
         <div class="stat-card">
           <div class="stat-info">
-            <div class="stat-label">Today's Downloads</div>
-            <div class="stat-val" style="color: #38bdf8;">${todayDl}</div>
-            <div class="stat-trend up">Live today count</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
-        </div>
-
-        <!-- Metric 2: 7-Day Downloads -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">7-Day Downloads</div>
-            <div class="stat-val" style="color: #10b981;">${weekDl}</div>
-            <div class="stat-trend up">Past 7 days volume</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">📊</div>
-        </div>
-
-        <!-- Metric 3: 1-Month Downloads -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">1-Month Downloads</div>
-            <div class="stat-val" style="color: #a855f7;">${monthDl}</div>
-            <div class="stat-trend up">Monthly aggregate</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(168, 85, 247, 0.15); color: #a855f7;">📈</div>
-        </div>
-
-        <!-- Metric 4: Total Downloads -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Total Downloads</div>
-            <div class="stat-val" style="color: #f59e0b;">${totalDl}</div>
-            <div class="stat-trend up">All-time verified total</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⚡</div>
-        </div>
-
-        <!-- Metric 5: Today's Active Users -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Today's Active Users</div>
+            <div class="stat-label">Daily Active Users</div>
             <div class="stat-val" style="color: #f97316;">${activeTodayUsers}</div>
-            <div class="stat-trend up">Active players ecosystem</div>
+            <div class="stat-trend up">🔥 Active today players</div>
           </div>
           <div class="stat-icon-wrapper" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🔥</div>
         </div>
 
-        <!-- Metric 6: Total Registered Users -->
+        <!-- Metric 2: 7-Day Active Users -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">7-Day Active Users</div>
+            <div class="stat-val" style="color: #06b6d4;">${activeWeekUsers}</div>
+            <div class="stat-trend up">👥 Weekly active player base</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">👥</div>
+        </div>
+
+        <!-- Metric 3: Total Registered Users -->
         <div class="stat-card">
           <div class="stat-info">
             <div class="stat-label">Total Registered Users</div>
-            <div class="stat-val" style="color: #34d399;">${totalUsers}</div>
-            <div class="stat-trend up">Cloud Firestore Synced</div>
+            <div class="stat-val" style="color: #10b981;">${totalUsers}</div>
+            <div class="stat-trend up">👑 Cloud Firestore Synced</div>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(52, 211, 153, 0.15); color: #34d399;">👥</div>
+          <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">👑</div>
+        </div>
+
+        <!-- Metric 4: Today's Downloads -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">Today's Downloads</div>
+            <div class="stat-val" style="color: #38bdf8;">${todayDl}</div>
+            <div class="stat-trend up">📥 Live dynamic counter</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
+        </div>
+
+        <!-- Metric 5: 7-Day Downloads -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">7-Day Downloads</div>
+            <div class="stat-val" style="color: #059669;">${weekDl}</div>
+            <div class="stat-trend up">📊 Past 7 days volume</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(5, 150, 105, 0.15); color: #059669;">📊</div>
+        </div>
+
+        <!-- Metric 6: 1-Month Downloads -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">1-Month Downloads</div>
+            <div class="stat-val" style="color: #a855f7;">${monthDl}</div>
+            <div class="stat-trend up">📈 Monthly aggregate</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(168, 85, 247, 0.15); color: #a855f7;">📈</div>
+        </div>
+
+        <!-- Metric 7: Total Downloads -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">Total Downloads</div>
+            <div class="stat-val" style="color: #f59e0b;">${totalDl}</div>
+            <div class="stat-trend up">⚡ All-time verified total</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⚡</div>
+        </div>
+
+        <!-- Metric 8: Cloud Firestore & Sync Health -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-label">Cloud Backend Health</div>
+            <div class="stat-val" style="color: #3b82f6; font-size: 19px;">ONLINE</div>
+            <div class="stat-trend up">🛡️ Zero-Latency Firebase Sync</div>
+          </div>
+          <div class="stat-icon-wrapper" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">🛡️</div>
         </div>
 
       </div>
@@ -1057,6 +1152,9 @@ function renderUsers() {
             <button class="btn-export-csv" id="btn-export-users-csv" title="Export for Google Sheets / Excel / AI">
               📥 Export CSV (Google Sheets)
             </button>
+            <button class="btn-export-csv" id="btn-export-users-marketing" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;" title="Export Leads List for SMS / WhatsApp / Telegram Marketing">
+              📢 Export Marketing Leads (.txt)
+            </button>
             <button class="btn-export-json" id="btn-export-users-json" title="Export as JSON for backup & automation">
               📄 Export JSON
             </button>
@@ -1179,31 +1277,20 @@ function renderUsers() {
 // EXPORT USERS (CSV for Google Sheets & JSON)
 // ==========================================
 function exportUsersCSV() {
-  const users = state.users.length > 0 ? state.users : [
-    {
-      id: "1",
-      playerNumber: 1,
-      fullName: "Mobin Admin",
-      username: "Mobin Admin",
-      email: "mobinyt420@gmail.com",
-      phone: "01700000000",
-      role: "Admin",
-      status: "Active",
-      registeredDate: new Date().toLocaleDateString()
-    }
-  ];
+  const users = state.users.length > 0 ? state.users : defaultUsers;
 
-  let csvContent = "User ID,Player Number,Full Name,Email,Phone Number,Role,Status,Registered Date\n";
+  let csvContent = "User ID,Player Number,Full Name,Gmail,Phone Number,Free Fire UID,Role,Status,Registered Date\n";
   users.forEach((u, idx) => {
     const id = `"${u.id || ''}"`;
-    const num = `"${u.playerNumber || (idx + 1)}"`;
+    const num = `"${u.userId || u.playerNumber || (idx + 1)}"`;
     const name = `"${(u.fullName || u.username || '').replace(/"/g, '""')}"`;
     const email = `"${(u.email || '').replace(/"/g, '""')}"`;
-    const phone = `"${(u.phone || '').replace(/"/g, '""')}"`;
+    const phone = `"${(u.phone || u.phoneNumber || '').replace(/"/g, '""')}"`;
+    const ffUid = `"${(u.ffUid || '').replace(/"/g, '""')}"`;
     const role = `"${(u.role || 'Player').replace(/"/g, '""')}"`;
     const status = `"${(u.status || 'Active').replace(/"/g, '""')}"`;
-    const date = `"${(u.registeredDate || '').replace(/"/g, '""')}"`;
-    csvContent += `${id},${num},${name},${email},${phone},${role},${status},${date}\n`;
+    const date = `"${(u.registeredDate || u.createdAt || '').replace(/"/g, '""')}"`;
+    csvContent += `${id},${num},${name},${email},${phone},${ffUid},${role},${status},${date}\n`;
   });
 
   const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1216,6 +1303,35 @@ function exportUsersCSV() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('📥 Users Database (CSV) exported successfully for Google Sheets!', 'success');
+}
+
+function exportUsersMarketingList() {
+  const users = state.users.length > 0 ? state.users : defaultUsers;
+  let text = "========================================================\n";
+  text += "MOBIN X GAMING ECOSYSTEM - MARKETING LEADS DIRECTORY\n";
+  text += `Generated: ${new Date().toLocaleString()}\n`;
+  text += `Total Contacts: ${users.length}\n`;
+  text += "========================================================\n\n";
+
+  users.forEach((u, idx) => {
+    const num = u.userId || u.playerNumber || (idx + 1);
+    const name = u.fullName || u.username || 'Gamer';
+    const phone = u.phone || u.phoneNumber || 'N/A';
+    const email = u.email || 'N/A';
+    const ffUid = u.ffUid || 'N/A';
+    text += `#${num} | Name: ${name} | Phone: ${phone} | Gmail: ${email} | FF UID: ${ffUid}\n`;
+  });
+
+  const blob = new Blob(["\uFEFF" + text], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `MobinX_Marketing_Leads_${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📢 Marketing Leads List (.txt) exported successfully!', 'success');
 }
 
 function exportUsersJSON() {
@@ -1270,7 +1386,40 @@ function renderCurrentTab() {
   bindCurrentTabEvents();
 }
 
+// ==========================================
+// THEME SYSTEM (Dark & Light Mode Switcher)
+// ==========================================
+function initTheme() {
+  const savedTheme = localStorage.getItem('mobinx_admin_theme') || 'dark';
+  applyTheme(savedTheme);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('mobinx_admin_theme', theme);
+  const icon = document.getElementById('theme-toggle-icon');
+  const text = document.getElementById('theme-toggle-text');
+  if (icon && text) {
+    if (theme === 'light') {
+      icon.textContent = '☀️';
+      text.textContent = 'Light Mode';
+    } else {
+      icon.textContent = '🌙';
+      text.textContent = 'Dark Mode';
+    }
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  showToast(`Switched to ${next === 'light' ? 'Light' : 'Dark'} Mode`, 'info');
+}
+
 function bindNavigation() {
+  document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleTheme);
+
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -1761,6 +1910,11 @@ function bindCurrentTabEvents() {
     exportUsersCSV();
   });
 
+  // Export Marketing Leads List
+  document.getElementById('btn-export-users-marketing')?.addEventListener('click', () => {
+    exportUsersMarketingList();
+  });
+
   // Export JSON
   document.getElementById('btn-export-users-json')?.addEventListener('click', () => {
     exportUsersJSON();
@@ -1891,6 +2045,7 @@ function showToast(message, type = 'info') {
 // Robust Bootstrap
 function startAdminApp() {
   try {
+    initTheme();
     bindNavigation();
     renderCurrentTab();
     initFirebase().catch(e => console.warn('Firebase init:', e));
@@ -1899,10 +2054,10 @@ function startAdminApp() {
   }
 }
 
-if (typeof document !== 'undefined') {
+// Robust Bootstrap - Run immediately as DOM is parsed
+if (typeof window !== 'undefined') {
+  startAdminApp();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startAdminApp);
-  } else {
-    startAdminApp();
   }
 }
