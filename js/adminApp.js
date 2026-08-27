@@ -71,12 +71,44 @@ async function initFirebase() {
       snapshot.forEach(docSnap => {
         liveUsers.push({ ...docSnap.data(), id: docSnap.id });
       });
-      state.users = liveUsers;
-      setStorage('mobinx_registered_users', state.users);
+      if (liveUsers.length > 0) {
+        state.users = liveUsers;
+        setStorage('mobinx_registered_users', state.users);
+      } else {
+        const local = getStorage('mobinx_registered_users', []);
+        if (local.length > 0) state.users = local;
+      }
       if (state.activeTab === 'users' || state.activeTab === 'overview') {
         renderCurrentTab();
       }
     }, (err) => console.warn('Users onSnapshot notice:', err.message));
+
+    // Cross-tab real-time sync bus for instant user reflection
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('mobinx_sync_bus');
+      bc.onmessage = (event) => {
+        if (event.data && event.data.type === 'USER_REGISTERED' && event.data.user) {
+          const u = event.data.user;
+          const idx = state.users.findIndex(existing => (existing.email && existing.email.toLowerCase() === (u.email || '').toLowerCase()) || existing.id === u.id);
+          if (idx >= 0) state.users[idx] = { ...state.users[idx], ...u };
+          else state.users.unshift(u);
+          setStorage('mobinx_registered_users', state.users);
+          if (state.activeTab === 'users' || state.activeTab === 'overview') {
+            renderCurrentTab();
+          }
+        }
+      };
+    }
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'mobinx_registered_users' && e.newValue) {
+        try {
+          state.users = JSON.parse(e.newValue);
+          if (state.activeTab === 'users' || state.activeTab === 'overview') {
+            renderCurrentTab();
+          }
+        } catch(err) {}
+      }
+    });
 
     // Live Snapshot Listener for Tournaments (Always updates, even when empty after deletion)
     onSnapshot(collection(db, 'tournaments'), (snapshot) => {
@@ -97,12 +129,10 @@ async function initFirebase() {
       snapshot.forEach(docSnap => {
         liveBanners.push({ ...docSnap.data(), id: docSnap.id });
       });
-      if (liveBanners.length > 0) {
-        state.banners = liveBanners;
-        setStorage('mobinx_hero_banners', state.banners);
-        if (state.activeTab === 'banners') {
-          renderCurrentTab();
-        }
+      state.banners = liveBanners;
+      setStorage('mobinx_hero_banners', state.banners);
+      if (state.activeTab === 'banners') {
+        renderCurrentTab();
       }
     }, (err) => console.warn('Banners onSnapshot notice:', err.message));
 
@@ -1758,23 +1788,25 @@ function bindCurrentTabEvents() {
 
     state.banners.push(newBanner);
     setStorage('mobinx_hero_banners', state.banners);
-    await syncToFirestore('banners', newBanner.id, newBanner);
-    broadcastSync('BANNERS_UPDATED', newBanner);
-
     showToast('Banner published to cloud and app!', 'success');
     renderCurrentTab();
+    syncToFirestore('banners', newBanner.id, newBanner).catch(err => console.warn(err));
+    broadcastSync('BANNERS_UPDATED', newBanner);
   });
 
-  // Banners: Delete
+  // Banners: Delete (Immediate Non-Blocking UI Update)
   document.querySelectorAll('.btn-delete-banner').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      state.banners = state.banners.filter(b => b.id !== id);
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.getAttribute('data-id');
+      if (!id) return;
+      state.banners = state.banners.filter(b => String(b.id) !== String(id));
       setStorage('mobinx_hero_banners', state.banners);
-      await deleteFromFirestore('banners', id);
-      broadcastSync('BANNERS_UPDATED', { deletedId: id });
-      showToast('Banner removed from cloud.', 'warning');
+      showToast('Banner removed from dashboard.', 'warning');
       renderCurrentTab();
+      deleteFromFirestore('banners', id).catch(err => console.warn('Banner delete cloud note:', err.message));
+      broadcastSync('BANNERS_UPDATED', { deletedId: id });
     });
   });
 
@@ -1851,12 +1883,12 @@ function bindCurrentTabEvents() {
     }
   });
 
-  // Save Home Notice Popup
-  document.getElementById('form-save-home-popup')?.addEventListener('submit', async (e) => {
+  // Save Home Notice Popup (Immediate UI Update)
+  document.getElementById('form-save-home-popup')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const enabled = document.getElementById('admin-popup-enabled')?.checked ?? true;
+    const enabled = document.getElementById('admin-popup-enabled')?.checked ?? false;
     const image = document.getElementById('admin-popup-image')?.value.trim() || '';
-    const description = document.getElementById('admin-popup-desc')?.value.trim();
+    const description = document.getElementById('admin-popup-desc')?.value.trim() || '';
     const buttonText = document.getElementById('admin-popup-btn-text')?.value.trim() || 'ক্লিক করুন';
     const buttonUrl = document.getElementById('admin-popup-btn-url')?.value.trim() || 'https://t.me/mrmobin1m';
     const showOncePerSession = document.getElementById('admin-popup-once')?.checked ?? true;
@@ -1872,12 +1904,13 @@ function bindCurrentTabEvents() {
     };
 
     setStorage('mobinx_home_popup', state.homePopup);
-    await syncToFirestore('config', 'home_popup', state.homePopup);
-    await syncToFirestore('config', 'notices', { welcomePopup: state.homePopup });
-    broadcastSync('HOME_POPUP_UPDATED', state.homePopup);
-
-    showToast(enabled ? '🎉 Home Notice Popup deployed & synced live!' : 'Home Notice Popup saved (Disabled).', 'success');
+    showToast(enabled ? '🎉 Home Notice Popup enabled & deployed!' : 'Home Notice Popup saved (Disabled).', 'success');
     renderCurrentTab();
+
+    // Background cloud sync
+    syncToFirestore('config', 'home_popup', state.homePopup).catch(err => console.warn(err));
+    syncToFirestore('config', 'notices', { welcomePopup: state.homePopup }).catch(err => console.warn(err));
+    broadcastSync('HOME_POPUP_UPDATED', state.homePopup);
   });
 
   // Toggle label on update checkbox change
@@ -1889,10 +1922,10 @@ function bindCurrentTabEvents() {
     }
   });
 
-  // Save Google Play Store Update Config
-  document.getElementById('form-save-update-config')?.addEventListener('submit', async (e) => {
+  // Save Google Play Store Update Config (Immediate UI Update)
+  document.getElementById('form-save-update-config')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const enabled = document.getElementById('admin-update-enabled')?.checked ?? true;
+    const enabled = document.getElementById('admin-update-enabled')?.checked ?? false;
     const latestVersion = document.getElementById('admin-update-version')?.value.trim() || '1.1';
     const forceUpdate = document.getElementById('admin-update-force')?.checked ?? false;
     const updateTitle = document.getElementById('admin-update-title')?.value.trim() || 'নতুন আপডেট উপলব্ধ! 🚀';

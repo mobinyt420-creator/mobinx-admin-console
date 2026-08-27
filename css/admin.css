@@ -889,10 +889,12 @@ textarea.form-control {
     height: 100vh;
     transform: translateX(-100%);
     box-shadow: 10px 0 40px rgba(0, 0, 0, 0.8);
+    z-index: 1000 !important;
   }
 
   .admin-sidebar.open {
     transform: translateX(0);
+    z-index: 1000 !important;
   }
 
   .mobile-menu-toggle {
@@ -1054,17 +1056,17 @@ textarea.form-control {
   box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
 }
 
-/* Sidebar Backdrop for Mobile */
+/* Sidebar Backdrop for Mobile (Zero Blur, Crisp UI) */
 .sidebar-backdrop {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(11, 19, 41, 0.5);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   z-index: 998;
   opacity: 0;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
 }
 
 .sidebar-backdrop.open {
