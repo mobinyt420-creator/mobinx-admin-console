@@ -1,10 +1,10 @@
-// Firebase Configuration for Mobin X Gaming Ecosystem & Admin Panel
+// Firebase Configuration for Mobin X Gaming Ecosystem & Admin Panel (Dedicated Project)
 export const firebaseConfig = {
-  projectId: "obin-shop",
-  appId: "1:219633934545:web:530b11c03ab12a87e065f0",
-  storageBucket: "obin-shop.firebasestorage.app",
-  apiKey: "AIzaSyAhXqIMw0YFQFtlrPBzhUNnvl3Oye7kU88",
-  authDomain: "obin-shop.firebaseapp.com",
-  messagingSenderId: "219633934545",
-  measurementId: "G-HS93YRE6KC"
+  apiKey: "AIzaSyA3azrMoyQcoYhpIEoCKJVHz9t8Vkn3gzQ",
+  authDomain: "mobin-x.firebaseapp.com",
+  projectId: "mobin-x",
+  storageBucket: "mobin-x.firebasestorage.app",
+  messagingSenderId: "324250096879",
+  appId: "1:324250096879:web:5929e14ae06c356edab71a",
+  measurementId: "G-YD15W1NTNG"
 };
