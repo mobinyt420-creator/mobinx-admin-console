@@ -254,7 +254,8 @@ const defaultHomePopup = {
 
 // Default Google Play Store Update Config
 const defaultAppUpdate = {
-  latestVersion: '1.0',
+  enabled: false,
+  latestVersion: '1.1',
   currentVersion: '1.0',
   forceUpdate: false,
   updateTitle: 'নতুন আপডেট উপলব্ধ! 🚀',
@@ -577,7 +578,7 @@ function renderTournaments() {
           ${state.tournaments.length === 0 ? `
             <div style="text-align: center; padding: 32px 16px; background: var(--bg-body); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
               <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
-              <div style="font-size: 15px; font-weight: 800; color: #ffffff;">No Active Tournaments</div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Active Tournaments</div>
               <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
                 Use the form above to schedule a new tournament. It will sync to players in real-time.
               </div>
@@ -590,7 +591,7 @@ function renderTournaments() {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                   <div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                      <h3 style="font-size: 16px; font-weight: 800; color: #ffffff;">${t.title}</h3>
+                      <h3 style="font-size: 16px; font-weight: 800; color: var(--text-main);">${t.title}</h3>
                       <span class="badge" style="${isLive ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(245, 158, 11, 0.2); color: #fbbf24;'} font-weight: 700;">
                         ${isLive ? '🔴 MATCH IS LIVE / ROOM RELEASED' : '🟡 UPCOMING'}
                       </span>
@@ -715,7 +716,7 @@ function renderDownloads() {
               <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                 <div>
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <h3 style="font-size: 15px; font-weight: 800; color: #ffffff;">${dl.title}</h3>
+                    <h3 style="font-size: 15px; font-weight: 800; color: var(--text-main);">${dl.title}</h3>
                     <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">${dl.category}</span>
                     ${dl.isPinned ? `<span class="badge" style="background: #eab308; color: #000; font-weight: 800;">📌 PINNED</span>` : ''}
                   </div>
@@ -790,7 +791,7 @@ function renderFlashDeals() {
             <div class="item-card">
               <div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-weight: 800; color: #ffffff;">${d.diamondAmount}</span>
+                  <span style="font-weight: 800; color: var(--text-main);">${d.diamondAmount}</span>
                   <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">${d.badge}</span>
                 </div>
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
@@ -873,7 +874,7 @@ function renderBanners() {
               <div style="display: flex; align-items: center; gap: 12px;">
                 <img src="${b.image}" alt="${b.title}" style="width: 80px; height: 45px; border-radius: 6px; object-fit: cover; background: #000;" onerror="this.src='assets/images/banner_hero1.jpg'" />
                 <div>
-                  <div style="font-weight: 800; color: #ffffff;">${b.title}</div>
+                  <div style="font-weight: 800; color: var(--text-main);">${b.title}</div>
                   <div style="font-size: 11px; color: var(--text-muted);">
                     Link: <strong>${b.actionUrl || 'None'}</strong> | Badge: ${b.badge || 'HOT'}
                   </div>
@@ -1041,11 +1042,19 @@ function renderSystemUrls() {
             <div class="card-title">📲 Google Play Store App Version & Update Controller</div>
             <div class="card-subtitle">Trigger update prompts for all app players when a new APK or bundle is published on Google Play</div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <input type="checkbox" id="admin-update-force" style="width: 18px; height: 18px; cursor: pointer;" ${updateConfig.forceUpdate ? 'checked' : ''} />
-            <label for="admin-update-force" style="font-size: 12px; font-weight: 800; color: ${updateConfig.forceUpdate ? '#ef4444' : 'var(--text-muted)'}; cursor: pointer;">
-              ${updateConfig.forceUpdate ? '⚠️ MANDATORY (BLOCKING)' : '○ OPTIONAL UPDATE'}
-            </label>
+          <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="admin-update-enabled" style="width: 18px; height: 18px; cursor: pointer;" ${updateConfig.enabled ? 'checked' : ''} />
+              <label for="admin-update-enabled" id="admin-update-status-label" style="font-size: 12px; font-weight: 800; color: ${updateConfig.enabled ? '#10b981' : 'var(--text-muted)'}; cursor: pointer;">
+                ${updateConfig.enabled ? '● ACTIVE IN APP' : '○ DISABLED'}
+              </label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="admin-update-force" style="width: 18px; height: 18px; cursor: pointer;" ${updateConfig.forceUpdate ? 'checked' : ''} />
+              <label for="admin-update-force" style="font-size: 12px; font-weight: 800; color: ${updateConfig.forceUpdate ? '#ef4444' : 'var(--text-muted)'}; cursor: pointer;">
+                ${updateConfig.forceUpdate ? '⚠️ MANDATORY (BLOCKING)' : '○ OPTIONAL UPDATE'}
+              </label>
+            </div>
           </div>
         </div>
 
@@ -1145,7 +1154,7 @@ function renderUsers() {
       <div class="card">
         <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
           <div>
-            <div class="card-title">👥 Registered Players Directory (${state.users.length})</div>
+            <div class="card-title">👥 Users Directory (${state.users.length})</div>
             <div class="card-subtitle">Real-time live synchronization with Cloud Firestore users database</div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -1164,19 +1173,19 @@ function renderUsers() {
           </div>
         </div>
 
-        <!-- Search Players Bar -->
+        <!-- Search Users Bar -->
         <div style="margin-bottom: 14px;">
-          <input type="text" id="input-search-players" class="form-control" placeholder="🔍 Search player by User ID (1, 2...), Name, Gmail, Phone, or FF UID..." value="${state.userSearchQuery || ''}" />
+          <input type="text" id="input-search-players" class="form-control" placeholder="🔍 Search user by User ID (#1, #2...), Name, Gmail, Phone, or FF UID..." value="${state.userSearchQuery || ''}" />
         </div>
 
-        <!-- Players Cards List -->
+        <!-- Users Cards List -->
         <div style="display: flex; flex-direction: column; gap: 12px;">
           ${filtered.length === 0 ? `
             <div style="text-align: center; padding: 36px 16px; background: var(--bg-body); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
-              <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
-              <div style="font-size: 15px; font-weight: 800; color: #ffffff;">No Players Registered Yet</div>
+              <div style="font-size: 32px; margin-bottom: 8px;">👥</div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Users Registered Yet</div>
               <div style="font-size: 12px; color: var(--text-muted); max-width: 420px; margin: 4px auto 0 auto;">
-                As soon as users open the app and register or sign in with Google, their sequential User ID (1, 2, 3...), Gmail, Phone, and Free Fire UID will automatically appear here!
+                As soon as users open the app and sign in or register with Google, their sequential User ID (#1, #2, #3...), Name, Gmail, Phone, and Free Fire UID will automatically appear here in 100% real-time!
               </div>
             </div>
           ` : filtered.map((u, idx) => {
@@ -1207,7 +1216,7 @@ function renderUsers() {
 
                   <!-- Details Column -->
                   <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 6px;">
-                    <div style="font-size: 15px; font-weight: 800; color: #ffffff;">
+                    <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">
                       ${u.fullName || u.username || 'Free Fire Gamer'}
                     </div>
 
@@ -1236,7 +1245,7 @@ function renderUsers() {
 
                     <!-- Free Fire UID Row with Copy -->
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
-                      <span>🎯 <strong>FF UID:</strong> <strong style="color:#ffffff;">${u.ffUid || 'Not linked'}</strong></span>
+                      <span>🎯 <strong>FF UID:</strong> <strong style="color: var(--text-main);">${u.ffUid || 'Not linked'}</strong></span>
                       ${u.ffUid ? `
                         <button class="btn-copy-tag btn-copy-field" data-copy="${u.ffUid}" data-label="Free Fire UID" title="Copy Free Fire UID">
                           📋 Copy
@@ -1376,7 +1385,7 @@ function renderCurrentTab() {
       content.innerHTML = renderSystemUrls();
       break;
     case 'users':
-      if (title) title.textContent = 'Players Directory';
+      if (title) title.textContent = 'Users';
       content.innerHTML = renderUsers();
       break;
     default:
@@ -1390,7 +1399,7 @@ function renderCurrentTab() {
 // THEME SYSTEM (Dark & Light Mode Switcher)
 // ==========================================
 function initTheme() {
-  const savedTheme = localStorage.getItem('mobinx_admin_theme') || 'dark';
+  const savedTheme = localStorage.getItem('mobinx_admin_theme') || document.documentElement.getAttribute('data-theme') || 'dark';
   applyTheme(savedTheme);
 }
 
@@ -1428,15 +1437,27 @@ function bindNavigation() {
       renderCurrentTab();
 
       const sidebar = document.getElementById('admin-sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
       if (sidebar && window.innerWidth <= 900) {
         sidebar.classList.remove('open');
+        backdrop?.classList.remove('open');
       }
     });
   });
 
   document.getElementById('mobile-toggle-btn')?.addEventListener('click', () => {
     const sidebar = document.getElementById('admin-sidebar');
-    sidebar?.classList.toggle('open');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const isOpen = sidebar?.classList.toggle('open');
+    if (backdrop) {
+      if (isOpen) backdrop.classList.add('open');
+      else backdrop.classList.remove('open');
+    }
+  });
+
+  document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
+    document.getElementById('admin-sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-backdrop')?.classList.remove('open');
   });
 }
 
@@ -1859,9 +1880,19 @@ function bindCurrentTabEvents() {
     renderCurrentTab();
   });
 
+  // Toggle label on update checkbox change
+  document.getElementById('admin-update-enabled')?.addEventListener('change', function() {
+    const lbl = document.getElementById('admin-update-status-label');
+    if (lbl) {
+      lbl.textContent = this.checked ? '● ACTIVE IN APP' : '○ DISABLED';
+      lbl.style.color = this.checked ? '#10b981' : 'var(--text-muted)';
+    }
+  });
+
   // Save Google Play Store Update Config
   document.getElementById('form-save-update-config')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const enabled = document.getElementById('admin-update-enabled')?.checked ?? true;
     const latestVersion = document.getElementById('admin-update-version')?.value.trim() || '1.1';
     const forceUpdate = document.getElementById('admin-update-force')?.checked ?? false;
     const updateTitle = document.getElementById('admin-update-title')?.value.trim() || 'নতুন আপডেট উপলব্ধ! 🚀';
@@ -1869,6 +1900,7 @@ function bindCurrentTabEvents() {
     const updateUrl = document.getElementById('admin-update-url')?.value.trim() || 'https://play.google.com/store/apps/details?id=com.mobinx.gaming';
 
     state.appUpdate = {
+      enabled,
       latestVersion,
       currentVersion: '1.0',
       forceUpdate,
@@ -1881,7 +1913,7 @@ function bindCurrentTabEvents() {
     await syncToFirestore('config', 'app_update', state.appUpdate);
     broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
 
-    showToast('🚀 Play Store Update Alert saved & deployed live!', 'success');
+    showToast('🚀 Play Store Update Alert saved & deployed live to all players!', 'success');
     renderCurrentTab();
   });
 
