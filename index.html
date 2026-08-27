@@ -1363,6 +1363,17 @@ async function initFirebase() {
         liveUsers.push({ ...docSnap.data(), id: docSnap.id });
       });
       if (liveUsers.length > 0) {
+        // Sort: Admin first, then other users by registration date / last login
+        liveUsers.sort((a, b) => {
+          if (a.isAdmin && !b.isAdmin) return -1;
+          if (!a.isAdmin && b.isAdmin) return 1;
+          return (a.userId || a.playerNumber || 999) - (b.userId || b.playerNumber || 999);
+        });
+        // Ensure clean 1-based sequential numbers
+        liveUsers.forEach((u, i) => {
+          u.userId = i + 1;
+          u.playerNumber = i + 1;
+        });
         state.users = liveUsers;
         setStorage('mobinx_registered_users', state.users);
       } else {
