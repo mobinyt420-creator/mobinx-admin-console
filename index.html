@@ -1356,11 +1356,28 @@ async function initFirebase() {
     console.log('⚡ Firebase Cloud Connected to Project:', firebaseConfig.projectId);
     updateFirebaseStatusBadge(true);
 
+    // Known legacy dummy test emails to permanently purge
+    const legacyDummyEmails = [
+      'sakib.rusher@gmail.com',
+      'mehedi.ghost@gmail.com',
+      'afsana.queenff@gmail.com',
+      'rifat.booyah99@gmail.com',
+      'tanvir.ff@gmail.com',
+      'shanto.gaming@gmail.com',
+      'mrweb4200@gmail.com',
+      'tanvir.gamer99@gmail.com',
+      'sabbir.ff2026@gmail.com'
+    ];
+
     // Live Snapshot Listener for Real-Time Registered Players
     onSnapshot(collection(db, 'users'), (snapshot) => {
       const liveUsers = [];
       snapshot.forEach(docSnap => {
-        liveUsers.push({ ...docSnap.data(), id: docSnap.id });
+        const d = docSnap.data();
+        const email = (d.email || '').toLowerCase().trim();
+        if (!legacyDummyEmails.includes(email)) {
+          liveUsers.push({ ...d, id: docSnap.id });
+        }
       });
       if (liveUsers.length > 0) {
         // 1. Sort chronologically (oldest registration first) to assign persistent sequential User IDs: #1, #2, #3...
@@ -1386,7 +1403,7 @@ async function initFirebase() {
         setStorage('mobinx_registered_users', state.users);
       } else {
         const local = getStorage('mobinx_registered_users', defaultUsers);
-        state.users = local;
+        state.users = local.filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim()));
       }
       if (state.activeTab === 'users' || state.activeTab === 'overview') {
         renderCurrentTab();
@@ -1645,6 +1662,21 @@ const state = {
   users: getStorage('mobinx_registered_users', defaultUsers),
   userSearchQuery: ''
 };
+
+// Immediate Startup Purge: Delete any cached dummy users from state and browser storage
+const legacyDummyEmails = [
+  'sakib.rusher@gmail.com',
+  'mehedi.ghost@gmail.com',
+  'afsana.queenff@gmail.com',
+  'rifat.booyah99@gmail.com',
+  'tanvir.ff@gmail.com',
+  'shanto.gaming@gmail.com',
+  'mrweb4200@gmail.com',
+  'tanvir.gamer99@gmail.com',
+  'sabbir.ff2026@gmail.com'
+];
+state.users = (state.users || []).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim()));
+setStorage('mobinx_registered_users', state.users);
 
 // ==========================================
 // 3. TAB RENDERERS
@@ -3284,18 +3316,44 @@ function bindCurrentTabEvents() {
     renderCurrentTab();
   });
 
-  // Refresh from Cloud
+  // Refresh from Cloud (Hard Cache Reset & Clean Sync)
   document.getElementById('btn-refresh-users')?.addEventListener('click', async () => {
-    showToast('Syncing players from Cloud Firestore...', 'info');
+    showToast('Clearing cache and syncing fresh from Cloud Firestore...', 'info');
+    localStorage.removeItem('mobinx_registered_users');
     if (db) {
       try {
         const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         const snap = await getDocs(collection(db, 'users'));
         const usersList = [];
-        snap.forEach(docSnap => usersList.push({ ...docSnap.data(), id: docSnap.id }));
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          const email = (d.email || '').toLowerCase().trim();
+          if (!legacyDummyEmails.includes(email)) {
+            usersList.push({ ...d, id: docSnap.id });
+          }
+        });
+
+        // 1. Sort chronologically (oldest registration first)
+        usersList.sort((a, b) => {
+          const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
+          const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
+          if (timeA !== timeB) return timeA - timeB;
+          if (a.isAdmin && !b.isAdmin) return -1;
+          if (!a.isAdmin && b.isAdmin) return 1;
+          return (a.userId || 999) - (b.userId || 999);
+        });
+
+        usersList.forEach((u, i) => {
+          u.userId = i + 1;
+          u.playerNumber = i + 1;
+        });
+
+        // 2. Sort reverse chronological (newest on top)
+        usersList.sort((a, b) => (b.userId || 0) - (a.userId || 0));
+
         state.users = usersList;
         setStorage('mobinx_registered_users', state.users);
-        showToast(`Synced ${usersList.length} players from Firestore!`, 'success');
+        showToast(`Synced ${usersList.length} verified players from Cloud Firestore!`, 'success');
         renderCurrentTab();
       } catch (err) {
         showToast('Cloud sync note: ' + err.message, 'warning');
