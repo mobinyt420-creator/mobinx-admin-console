@@ -72,22 +72,30 @@ async function initFirebase() {
         liveUsers.push({ ...docSnap.data(), id: docSnap.id });
       });
       if (liveUsers.length > 0) {
-        // Sort: Admin first, then other users by registration date / last login
+        // 1. Sort chronologically (oldest registration first) to assign persistent sequential User IDs: #1, #2, #3...
         liveUsers.sort((a, b) => {
+          const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
+          const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
+          if (timeA !== timeB) return timeA - timeB;
           if (a.isAdmin && !b.isAdmin) return -1;
           if (!a.isAdmin && b.isAdmin) return 1;
-          return (a.userId || a.playerNumber || 999) - (b.userId || b.playerNumber || 999);
+          return (a.userId || 999) - (b.userId || 999);
         });
-        // Ensure clean 1-based sequential numbers
+
+        // Stamp persistent sequential User ID (#1, #2, #3, #4, #5...)
         liveUsers.forEach((u, i) => {
           u.userId = i + 1;
           u.playerNumber = i + 1;
         });
+
+        // 2. Sort in REVERSE CHRONOLOGICAL order so the newest registered user is at the VERY TOP!
+        liveUsers.sort((a, b) => (b.userId || 0) - (a.userId || 0));
+
         state.users = liveUsers;
         setStorage('mobinx_registered_users', state.users);
       } else {
-        const local = getStorage('mobinx_registered_users', []);
-        if (local.length > 0) state.users = local;
+        const local = getStorage('mobinx_registered_users', defaultUsers);
+        state.users = local;
       }
       if (state.activeTab === 'users' || state.activeTab === 'overview') {
         renderCurrentTab();
@@ -101,8 +109,15 @@ async function initFirebase() {
         if (event.data && event.data.type === 'USER_REGISTERED' && event.data.user) {
           const u = event.data.user;
           const idx = state.users.findIndex(existing => (existing.email && existing.email.toLowerCase() === (u.email || '').toLowerCase()) || existing.id === u.id);
-          if (idx >= 0) state.users[idx] = { ...state.users[idx], ...u };
-          else state.users.unshift(u);
+          if (idx >= 0) {
+            state.users[idx] = { ...state.users[idx], ...u };
+          } else {
+            // New user joins: get highest existing ID + 1, place at VERY TOP!
+            const maxId = state.users.reduce((max, curr) => Math.max(max, curr.userId || 0), 0);
+            u.userId = maxId + 1;
+            u.playerNumber = u.userId;
+            state.users.unshift(u); // Newest user on top!
+          }
           setStorage('mobinx_registered_users', state.users);
           if (state.activeTab === 'users' || state.activeTab === 'overview') {
             renderCurrentTab();
@@ -304,52 +319,25 @@ const defaultAppUpdate = {
   updateUrl: 'https://play.google.com/store/apps/details?id=com.mobinx.gaming'
 };
 
-// Default Registered Players (Initial Dataset, syncs live with Firestore)
+// Default Registered Players (Only official admin account, zero dummy users)
 const defaultUsers = [
   {
-    id: 'user-1',
+    id: 'user_mobinyt420_gmail_com',
     userId: 1,
+    playerNumber: 1,
     fullName: "Mr. Mobin (Admin)",
     username: "Mr. Mobin (Admin)",
     email: "mobinyt420@gmail.com",
     phone: "01784949249",
     phoneNumber: "01784949249",
     ffUid: "1234567890",
-    role: "System Administrator",
+    role: "System Administrator (Admin)",
     isAdmin: true,
     status: "Active",
     walletBalance: 5000,
-    registeredDate: "2026-08-25"
-  },
-  {
-    id: 'user-2',
-    userId: 2,
-    fullName: "Tanvir Ahmed",
-    username: "Tanvir Ahmed",
-    email: "tanvir.gamer99@gmail.com",
-    phone: "01823456789",
-    phoneNumber: "01823456789",
-    ffUid: "889421104",
-    role: "VIP Pro Member",
-    isAdmin: false,
-    status: "Active",
-    walletBalance: 250,
-    registeredDate: "2026-08-26"
-  },
-  {
-    id: 'user-3',
-    userId: 3,
-    fullName: "Sabbir Hossain",
-    username: "Sabbir Hossain",
-    email: "sabbir.ff2026@gmail.com",
-    phone: "01912345678",
-    phoneNumber: "01912345678",
-    ffUid: "774910239",
-    role: "Member",
-    isAdmin: false,
-    status: "Active",
-    walletBalance: 100,
-    registeredDate: "2026-08-27"
+    registeredDate: "2026-08-25",
+    registeredAtIso: "2026-08-25T10:00:00.000Z",
+    avatar: "assets/images/avatar_user.jpg"
   }
 ];
 
@@ -1179,7 +1167,9 @@ function renderSystemUrls() {
 // TAB 7: PLAYERS DIRECTORY (With 1-Click Copy, Direct Call, and CSV / JSON Export)
 function renderUsers() {
   const query = (state.userSearchQuery || '').toLowerCase().trim();
-  const filtered = state.users.filter(u => {
+  // Always sort in reverse chronological order (Newest registered player on TOP)
+  const sortedUsers = [...state.users].sort((a, b) => (b.userId || 0) - (a.userId || 0));
+  const filtered = sortedUsers.filter(u => {
     if (!query) return true;
     const name = (u.fullName || u.username || '').toLowerCase();
     const email = (u.email || '').toLowerCase();
@@ -1196,7 +1186,7 @@ function renderUsers() {
         <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
           <div>
             <div class="card-title">👥 Users Directory (${state.users.length})</div>
-            <div class="card-subtitle">Real-time live synchronization with Cloud Firestore users database</div>
+            <div class="card-subtitle">Real-time live synchronization with Cloud Firestore users database (Latest on Top)</div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button class="btn-export-csv" id="btn-export-users-csv" title="Export for Google Sheets / Excel / AI">
@@ -1231,7 +1221,7 @@ function renderUsers() {
             </div>
           ` : filtered.map((u, idx) => {
             const userSeqId = u.userId || u.playerNumber || (idx + 1);
-            const avatarUrl = u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username || 'Gamer')}`;
+            const avatarUrl = u.avatar || 'assets/images/avatar_user.jpg';
 
             return `
               <div class="player-management-card" data-user-id="${u.id}">
@@ -1252,7 +1242,7 @@ function renderUsers() {
                 <div style="display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
                   <!-- Avatar -->
                   <div style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #1e293b; border: 2px solid #3b82f6; flex-shrink: 0;">
-                    <img src="${avatarUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;" />
+                    <img src="${avatarUrl}" alt="Avatar" referrerpolicy="no-referrer" onerror="this.src='assets/images/avatar_user.jpg'" style="width: 100%; height: 100%; object-fit: cover;" />
                   </div>
 
                   <!-- Details Column -->
