@@ -2511,8 +2511,9 @@ function renderUsers() {
               </div>
             </div>
           ` : filtered.map((u, idx) => {
+            const fallbackAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='32' fill='%231e293b'/><circle cx='32' cy='24' r='12' fill='%233b82f6'/><path d='M14 52c0-10 8-18 18-18s18 8 18 18' fill='%232563eb'/></svg>";
             const userSeqId = u.userId || u.playerNumber || (idx + 1);
-            const avatarUrl = u.avatar || 'assets/images/avatar_user.jpg';
+            const avatarUrl = u.avatar && !u.avatar.includes('dicebear') ? u.avatar : fallbackAvatar;
 
             return `
               <div class="player-management-card" data-user-id="${u.id}">
@@ -2532,8 +2533,8 @@ function renderUsers() {
                 <!-- Card Body Details Grid -->
                 <div style="display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
                   <!-- Avatar -->
-                  <div style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #1e293b; border: 2px solid #3b82f6; flex-shrink: 0;">
-                    <img src="${avatarUrl}" alt="Avatar" referrerpolicy="no-referrer" onerror="this.src='assets/images/avatar_user.jpg'" style="width: 100%; height: 100%; object-fit: cover;" />
+                  <div style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #1e293b; border: 2px solid #3b82f6; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                    <img src="${avatarUrl}" alt="Avatar" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${fallbackAvatar}';" style="width: 100%; height: 100%; object-fit: cover;" />
                   </div>
 
                   <!-- Details Column -->
