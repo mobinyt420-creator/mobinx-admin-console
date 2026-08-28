@@ -1416,6 +1416,165 @@ function exportUsersJSON() {
   showToast('📄 Users Database (JSON) exported successfully!', 'success');
 }
 
+// TAB 8: AUTHENTICATION & SECURITY FEATURE FLAGS
+function renderAuthSettings() {
+  const authConfig = state.authSettings || {
+    googleSignUpEnabled: true,
+    manualSignUpEnabled: true,
+    googleLoginEnabled: true,
+    manualLoginEnabled: true,
+    topUpEnabled: true
+  };
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Top Introduction Card -->
+      <div class="card" style="border-left: 4px solid var(--primary);">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 14px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">
+            🔐
+          </div>
+          <div>
+            <h2 style="font-size: 18px; font-weight: 900; color: var(--text-main); margin: 0 0 2px 0;">Authentication & System Feature Flags</h2>
+            <p style="font-size: 12.5px; color: var(--text-muted); margin: 0;">Remotely control available sign up, login methods, and ecosystem features in the Android app via Cloud Firestore.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Controls Form -->
+      <form id="form-auth-settings">
+        
+        <!-- SECTION 1: SIGN UP METHODS -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📝 SIGN UP METHODS</div>
+              <div class="card-subtitle">Control how new gamers can register on MOBIN X</div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Google Sign Up -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span>🌐 Google Sign Up</span>
+                  <span id="badge-google-signup" class="badge" style="background: ${authConfig.googleSignUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.googleSignUpEnabled !== false ? '#34d399' : '#f87171'};">
+                    ${authConfig.googleSignUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
+                  </span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Enables 1-tap Google account registration flow in the app</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="flag-google-signup" ${authConfig.googleSignUpEnabled !== false ? 'checked' : ''} />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <!-- Manual Sign Up -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span>✉️ Manual Sign Up</span>
+                  <span id="badge-manual-signup" class="badge" style="background: ${authConfig.manualSignUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.manualSignUpEnabled !== false ? '#34d399' : '#f87171'};">
+                    ${authConfig.manualSignUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
+                  </span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Enables 4-step Name &rarr; Email &rarr; Phone &rarr; Password registration screen</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="flag-manual-signup" ${authConfig.manualSignUpEnabled !== false ? 'checked' : ''} />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: LOGIN METHODS -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔑 LOGIN METHODS</div>
+              <div class="card-subtitle">Control how existing players log in</div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Google Login -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span>🌐 Google Login</span>
+                  <span id="badge-google-login" class="badge" style="background: ${authConfig.googleLoginEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.googleLoginEnabled !== false ? '#34d399' : '#f87171'};">
+                    ${authConfig.googleLoginEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
+                  </span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Shows "Continue with Google" on the login screen</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="flag-google-login" ${authConfig.googleLoginEnabled !== false ? 'checked' : ''} />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <!-- Manual Email/Password Login -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span>✉️ Manual Email / Password Login</span>
+                  <span id="badge-manual-login" class="badge" style="background: ${authConfig.manualLoginEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.manualLoginEnabled !== false ? '#34d399' : '#f87171'};">
+                    ${authConfig.manualLoginEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
+                  </span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Shows Email + Password input boxes & Forgot Password flow</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="flag-manual-login" ${authConfig.manualLoginEnabled !== false ? 'checked' : ''} />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: ECOSYSTEM FEATURE FLAGS -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">💎 ECOSYSTEM FEATURE FLAGS</div>
+              <div class="card-subtitle">Control in-app entry points and optional modules</div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Top Up Store Entry -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span>💎 Top Up Store Access</span>
+                  <span id="badge-topup-access" class="badge" style="background: ${authConfig.topUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.topUpEnabled !== false ? '#34d399' : '#f87171'};">
+                    ${authConfig.topUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (HIDDEN)'}
+                  </span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Controls visibility of Top Up entry points across the client app</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="flag-topup-access" ${authConfig.topUpEnabled !== false ? 'checked' : ''} />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-save-auth-settings" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 800; margin-top: 6px; box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);">
+          💾 Save & Deploy Feature Flags to Cloud Firestore
+        </button>
+      </form>
+
+    </div>
+  `;
+}
+
 function renderCurrentTab() {
   const content = document.getElementById('tab-content-area');
   const title = document.getElementById('current-page-title');
@@ -1449,6 +1608,10 @@ function renderCurrentTab() {
     case 'users':
       if (title) title.textContent = 'Users';
       content.innerHTML = renderUsers();
+      break;
+    case 'auth-settings':
+      if (title) title.textContent = 'Authentication & Security Feature Flags';
+      content.innerHTML = renderAuthSettings();
       break;
     default:
       content.innerHTML = renderOverview();
@@ -2144,6 +2307,58 @@ function bindCurrentTabEvents() {
       showToast('Player removed.', 'warning');
       renderCurrentTab();
     });
+  });
+
+  // ==========================================
+  // AUTHENTICATION & SECURITY FEATURE FLAGS
+  // ==========================================
+  const updateBadge = (id, checked, onText, offText) => {
+    const badge = document.getElementById(id);
+    if (badge) {
+      badge.textContent = checked ? onText : offText;
+      badge.style.background = checked ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)';
+      badge.style.color = checked ? '#34d399' : '#f87171';
+    }
+  };
+
+  document.getElementById('flag-google-signup')?.addEventListener('change', (e) => {
+    updateBadge('badge-google-signup', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
+  });
+  document.getElementById('flag-manual-signup')?.addEventListener('change', (e) => {
+    updateBadge('badge-manual-signup', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
+  });
+  document.getElementById('flag-google-login')?.addEventListener('change', (e) => {
+    updateBadge('badge-google-login', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
+  });
+  document.getElementById('flag-manual-login')?.addEventListener('change', (e) => {
+    updateBadge('badge-manual-login', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
+  });
+  document.getElementById('flag-topup-access')?.addEventListener('change', (e) => {
+    updateBadge('badge-topup-access', e.target.checked, 'ON (ACTIVE)', 'OFF (HIDDEN)');
+  });
+
+  document.getElementById('form-auth-settings')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const googleSignUpEnabled = document.getElementById('flag-google-signup')?.checked ?? true;
+    const manualSignUpEnabled = document.getElementById('flag-manual-signup')?.checked ?? true;
+    const googleLoginEnabled = document.getElementById('flag-google-login')?.checked ?? true;
+    const manualLoginEnabled = document.getElementById('flag-manual-login')?.checked ?? true;
+    const topUpEnabled = document.getElementById('flag-topup-access')?.checked ?? true;
+
+    state.authSettings = {
+      googleSignUpEnabled,
+      manualSignUpEnabled,
+      googleLoginEnabled,
+      manualLoginEnabled,
+      topUpEnabled,
+      lastUpdated: new Date().toISOString()
+    };
+
+    setStorage('mobinx_auth_settings', state.authSettings);
+    await syncToFirestore('config', 'auth_settings', state.authSettings);
+    broadcastSync('AUTH_SETTINGS_UPDATED', state.authSettings);
+
+    showToast('🔐 Authentication Feature Flags deployed to Cloud Firestore!', 'success');
   });
 }
 function showToast(message, type = 'info') {
