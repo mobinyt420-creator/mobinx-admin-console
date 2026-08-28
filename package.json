@@ -4,8 +4,8 @@
   "description": "Master SaaS Admin Panel for Mobin X Gaming Ecosystem",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node local-server.js",
+    "dev": "node local-server.js"
   },
   "keywords": [
     "mobinx",
