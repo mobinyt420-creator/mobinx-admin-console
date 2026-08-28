@@ -2916,11 +2916,20 @@ function renderSystemUrls() {
         </div>
 
         <form id="form-broadcast-push">
-          <div class="form-group">
-            <label class="form-label">Push Notification Message *</label>
-            <input type="text" id="push-msg-input" class="form-control" placeholder="e.g. 🔥 Weekend BR Solo Headshot tournament registration open now!" required />
+          <div class="form-grid" style="grid-template-columns: 1fr 2fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">Notification Title *</label>
+              <input type="text" id="push-title-input" class="form-control" placeholder="e.g. BR MATCH REFUND / ANNOUNCEMENT" value="MOBIN X GAMING" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notification Message / Body *</label>
+              <input type="text" id="push-msg-input" class="form-control" placeholder="e.g. নেটওয়ার্ক সমস্যার জন্য 8:40/ 9:00 BR MATCH REFUND দেয়া হয়েছে" required />
+            </div>
           </div>
-          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">📢 Broadcast Push Notification Now</button>
+          <button type="submit" class="btn btn-primary" style="margin-top: 12px; display: inline-flex; align-items: center; gap: 8px;">
+            <span>📢</span>
+            <span>Broadcast Android Native Notification Now</span>
+          </button>
         </form>
       </div>
 
@@ -4139,18 +4148,22 @@ function bindCurrentTabEvents() {
   // Push Broadcast
   document.getElementById('form-broadcast-push')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const msg = document.getElementById('push-msg-input').value.trim();
+    const titleInput = document.getElementById('push-title-input')?.value?.trim();
+    const msg = document.getElementById('push-msg-input')?.value?.trim();
+    const notifTitle = titleInput || 'MOBIN X GAMING';
+    
+    state.notices = state.notices || {};
     state.notices.pushNotification = {
+      title: notifTitle,
       message: msg,
       timestamp: Date.now()
     };
 
     setStorage('mobinx_notices_config', state.notices);
-    showToast('📢 Push notification dispatched to all apps!', 'success');
-    document.getElementById('push-msg-input').value = '';
+    showToast(`📢 Push notification "${notifTitle}" dispatched!`, 'success');
 
     await syncToFirestore('config', 'notices', state.notices);
-    broadcastSync('PUSH_BROADCAST', state.notices.pushNotification);
+    broadcastSync('PUSH_NOTIFICATION_SENT', state.notices.pushNotification);
   });
 
   // Users: Export Buttons
