@@ -24,7 +24,7 @@ const MIME_TYPES = {
 export default function handler(req, res) {
   let reqPath = decodeURI(req.url.split('?')[0]);
   
-  // Clean URL Routing Rewrites
+  // Clean URL Routing
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
   } else if (reqPath === '/privacy-policy' || reqPath === '/privacy' || reqPath === '/privacy-policy.html') {
@@ -33,43 +33,36 @@ export default function handler(req, res) {
     reqPath = '/delete-account.html';
   }
 
-  let filePath = path.join(__dirname, reqPath);
+  // Resolve file from multiple possible Vercel serverless directories
+  const candidatePaths = [
+    path.join(__dirname, reqPath),
+    path.resolve(process.cwd(), '.' + reqPath),
+    path.resolve(process.cwd(), 'admin-website' + reqPath),
+    path.resolve(process.cwd(), 'admin' + reqPath)
+  ];
 
-  // If path doesn't have an extension, try checking for .html
-  if (!path.extname(filePath) && fs.existsSync(filePath + '.html')) {
-    filePath += '.html';
+  let resolvedPath = candidatePaths.find(p => fs.existsSync(p));
+
+  // Check with .html if not found
+  if (!resolvedPath && !path.extname(reqPath)) {
+    const htmlCandidates = [
+      path.join(__dirname, reqPath + '.html'),
+      path.resolve(process.cwd(), '.' + reqPath + '.html')
+    ];
+    resolvedPath = htmlCandidates.find(p => fs.existsSync(p));
   }
 
-  const ext = path.extname(filePath).toLowerCase();
+  if (!resolvedPath) {
+    resolvedPath = path.join(__dirname, 'index.html');
+  }
+
+  const ext = path.extname(resolvedPath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-  fs.readFile(filePath, (err, content) => {
+  fs.readFile(resolvedPath, (err, content) => {
     if (err) {
-      if (err.code === 'ENOENT') {
-        // Fallback: If requesting index or unknown route, serve index.html
-        const fallbackPath = path.join(__dirname, 'index.html');
-        if (fs.existsSync(fallbackPath)) {
-          fs.readFile(fallbackPath, (fbErr, fbContent) => {
-            if (fbErr) {
-              res.writeHead(404, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-              res.end('404 Not Found');
-            } else {
-              res.writeHead(200, {
-                'Content-Type': 'text/html; charset=UTF-8',
-                'Cache-Control': 'public, max-age=0, must-revalidate',
-                'Access-Control-Allow-Origin': '*'
-              });
-              res.end(fbContent);
-            }
-          });
-        } else {
-          res.writeHead(404, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-          res.end('404 Not Found: ' + reqPath);
-        }
-      } else {
-        res.writeHead(500, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-        res.end('Server Error: ' + err.message);
-      }
+      res.writeHead(404, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+      res.end('404 Not Found');
     } else {
       res.writeHead(200, {
         'Content-Type': contentType,
@@ -89,4 +82,3 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     console.log(`🚀 Mobin X Admin Console server running at: http://localhost:${PORT}/`);
   });
 }
-
