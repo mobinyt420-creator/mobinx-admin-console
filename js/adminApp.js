@@ -1,3 +1,8 @@
+// ==========================================================================
+// MOBIN X - STANDALONE SAAS ADMIN PANEL APPLICATION CONTROLLER
+// Real-Time Firebase Cloud Firestore Synchronization Engine
+// ==========================================================================
+
 import { firebaseConfig } from './firebaseConfig.js';
 
 // ==========================================
@@ -26,7 +31,7 @@ function broadcastSync(type, payload) {
   }
 }
 
-// LocalStorage & Cross-Tab Persistence Helpers
+// LocalStorage Persistence Helpers
 function getStorage(key, defaultVal) {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -51,6 +56,20 @@ function setStorage(key, val) {
   }
 }
 
+// Known legacy test dummy emails to filter out
+const legacyDummyEmails = [
+  'guest@mobinx.app',
+  'sakib.rusher@gmail.com',
+  'mehedi.ghost@gmail.com',
+  'afsana.queenff@gmail.com',
+  'rifat.booyah99@gmail.com',
+  'tanvir.ff@gmail.com',
+  'shanto.gaming@gmail.com',
+  'mrweb4200@gmail.com',
+  'tanvir.gamer99@gmail.com',
+  'sabbir.ff2026@gmail.com'
+];
+
 async function initFirebase() {
   try {
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
@@ -65,21 +84,7 @@ async function initFirebase() {
     console.log('⚡ Firebase Cloud Connected to Project:', firebaseConfig.projectId);
     updateFirebaseStatusBadge(true);
 
-    // Known legacy dummy test emails to permanently purge
-    const legacyDummyEmails = [
-      'guest@mobinx.app',
-      'sakib.rusher@gmail.com',
-      'mehedi.ghost@gmail.com',
-      'afsana.queenff@gmail.com',
-      'rifat.booyah99@gmail.com',
-      'tanvir.ff@gmail.com',
-      'shanto.gaming@gmail.com',
-      'mrweb4200@gmail.com',
-      'tanvir.gamer99@gmail.com',
-      'sabbir.ff2026@gmail.com'
-    ];
-
-    // Live Snapshot Listener for Real-Time Registered Players
+    // 1. Live Users Listener
     onSnapshot(collection(db, 'users'), (snapshot) => {
       const liveUsers = [];
       snapshot.forEach(docSnap => {
@@ -89,8 +94,8 @@ async function initFirebase() {
           liveUsers.push({ ...d, id: docSnap.id });
         }
       });
+
       if (liveUsers.length > 0) {
-        // 1. Sort chronologically (oldest registration first) to assign persistent sequential User IDs: #1, #2, #3...
         liveUsers.sort((a, b) => {
           const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
           const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
@@ -100,13 +105,11 @@ async function initFirebase() {
           return (a.userId || 999) - (b.userId || 999);
         });
 
-        // Stamp persistent sequential User ID (#1, #2, #3, #4, #5...)
         liveUsers.forEach((u, i) => {
           u.userId = i + 1;
           u.playerNumber = i + 1;
         });
 
-        // 2. Sort in REVERSE CHRONOLOGICAL order so the newest registered user is at the VERY TOP!
         liveUsers.sort((a, b) => (b.userId || 0) - (a.userId || 0));
 
         state.users = liveUsers;
@@ -130,11 +133,10 @@ async function initFirebase() {
           if (idx >= 0) {
             state.users[idx] = { ...state.users[idx], ...u };
           } else {
-            // New user joins: get highest existing ID + 1, place at VERY TOP!
             const maxId = state.users.reduce((max, curr) => Math.max(max, curr.userId || 0), 0);
             u.userId = maxId + 1;
             u.playerNumber = u.userId;
-            state.users.unshift(u); // Newest user on top!
+            state.users.unshift(u);
           }
           setStorage('mobinx_registered_users', state.users);
           if (state.activeTab === 'users' || state.activeTab === 'overview') {
@@ -143,18 +145,8 @@ async function initFirebase() {
         }
       };
     }
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'mobinx_registered_users' && e.newValue) {
-        try {
-          state.users = JSON.parse(e.newValue);
-          if (state.activeTab === 'users' || state.activeTab === 'overview') {
-            renderCurrentTab();
-          }
-        } catch(err) {}
-      }
-    });
 
-    // Live Snapshot Listener for Tournaments (Always updates, even when empty after deletion)
+    // 2. Live Tournaments Listener
     onSnapshot(collection(db, 'tournaments'), (snapshot) => {
       const liveTourns = [];
       snapshot.forEach(docSnap => {
@@ -167,20 +159,22 @@ async function initFirebase() {
       }
     }, (err) => console.warn('Tournaments onSnapshot notice:', err.message));
 
-    // Live Snapshot Listener for Banners
+    // 3. Live Banners Listener
     onSnapshot(collection(db, 'banners'), (snapshot) => {
       const liveBanners = [];
       snapshot.forEach(docSnap => {
         liveBanners.push({ ...docSnap.data(), id: docSnap.id });
       });
-      state.banners = liveBanners;
-      setStorage('mobinx_hero_banners', state.banners);
-      if (state.activeTab === 'banners') {
-        renderCurrentTab();
+      if (liveBanners.length > 0) {
+        state.banners = liveBanners;
+        setStorage('mobinx_hero_banners', state.banners);
+        if (state.activeTab === 'banners' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
       }
     }, (err) => console.warn('Banners onSnapshot notice:', err.message));
 
-    // Live Snapshot Listener for Downloads
+    // 4. Live Downloads Listener
     onSnapshot(collection(db, 'downloads'), (snapshot) => {
       const liveDl = [];
       snapshot.forEach(docSnap => {
@@ -195,7 +189,22 @@ async function initFirebase() {
       }
     }, (err) => console.warn('Downloads onSnapshot notice:', err.message));
 
-    // Live Snapshot Listener for Home Notice Popup Config
+    // 5. Live Flash Deals Listener
+    onSnapshot(collection(db, 'flashDeals'), (snapshot) => {
+      const liveDeals = [];
+      snapshot.forEach(docSnap => {
+        liveDeals.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveDeals.length > 0) {
+        state.flashDeals = liveDeals;
+        setStorage('mobinx_flash_deals', state.flashDeals);
+        if (state.activeTab === 'flash' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('FlashDeals onSnapshot notice:', err.message));
+
+    // 6. Live Home Notice Popup Listener
     onSnapshot(doc(db, 'config', 'home_popup'), (docSnap) => {
       if (docSnap.exists()) {
         state.homePopup = { ...state.homePopup, ...docSnap.data() };
@@ -206,7 +215,7 @@ async function initFirebase() {
       }
     }, (err) => console.warn('HomePopup onSnapshot notice:', err.message));
 
-    // Live Snapshot Listener for Google Play Store App Update Config
+    // 7. Live Google Play Store App Update Listener
     onSnapshot(doc(db, 'config', 'app_update'), (docSnap) => {
       if (docSnap.exists()) {
         state.appUpdate = { ...state.appUpdate, ...docSnap.data() };
@@ -216,17 +225,6 @@ async function initFirebase() {
         }
       }
     }, (err) => console.warn('AppUpdate onSnapshot notice:', err.message));
-
-    // Live Snapshot Listener for Auth Settings & Feature Flags
-    onSnapshot(doc(db, 'config', 'auth_settings'), (docSnap) => {
-      if (docSnap.exists()) {
-        state.authSettings = { ...state.authSettings, ...docSnap.data() };
-        setStorage('mobinx_auth_settings', state.authSettings);
-        if (state.activeTab === 'auth-settings') {
-          renderCurrentTab();
-        }
-      }
-    }, (err) => console.warn('AuthSettings onSnapshot notice:', err.message));
 
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
@@ -249,7 +247,6 @@ function updateFirebaseStatusBadge(connected) {
   }
 }
 
-// Write to Cloud Firestore helper
 async function syncToFirestore(collectionName, docId, data) {
   if (!db) return false;
   try {
@@ -275,9 +272,8 @@ async function deleteFromFirestore(collectionName, docId) {
 }
 
 // ==========================================
-// 2. DATA STORES & SEEDED DATA
+// 2. SEEDED DEFAULT DATA
 // ==========================================
-// Clean, zero fake dummy tournaments
 const defaultTournaments = [];
 
 const defaultDownloads = [
@@ -290,10 +286,10 @@ const defaultDownloads = [
     videoDuration: "08:45",
     isPinned: true,
     actionButtons: [
-      { id: "act-1", label: "Proxy APK Download", url: "https://mrmobin.blogspot.com/2024/07/proxy-apk.html", icon: "download", type: "download" },
-      { id: "act-2", label: "UID Unlock Tool", url: "https://mrmobin.blogspot.com/2024/07/uid-unlock.html", icon: "key", type: "key" },
-      { id: "act-3", label: "Sound Pack VIP", url: "https://mrmobin.blogspot.com/2024/07/sound.html", icon: "file", type: "file" },
-      { id: "act-4", label: "Join Telegram Channel", url: "https://t.me/mobinx_official", icon: "link", type: "external" }
+      { id: "act-1", label: "Proxy APK Download", url: "https://mrmobin.blogspot.com/2024/07/proxy-apk.html", icon: "download" },
+      { id: "act-2", label: "UID Unlock Tool", url: "https://mrmobin.blogspot.com/2024/07/uid-unlock.html", icon: "key" },
+      { id: "act-3", label: "Sound Pack VIP", url: "https://mrmobin.blogspot.com/2024/07/sound.html", icon: "file" },
+      { id: "act-4", label: "Join Telegram Channel", url: "https://t.me/mobinx_official", icon: "link" }
     ]
   }
 ];
@@ -326,7 +322,6 @@ const defaultNotices = {
   }
 };
 
-// Default Home Notice Popup (Matching uploaded screenshot with Bengali announcement)
 const defaultHomePopup = {
   enabled: false,
   image: '',
@@ -337,7 +332,6 @@ const defaultHomePopup = {
   showOncePerSession: true
 };
 
-// Default Google Play Store Update Config
 const defaultAppUpdate = {
   enabled: false,
   latestVersion: '1.1',
@@ -348,7 +342,6 @@ const defaultAppUpdate = {
   updateUrl: 'https://play.google.com/store/apps/details?id=com.mobinx.gaming'
 };
 
-// Default Registered Players (Only official admin account, zero dummy users)
 const defaultUsers = [
   {
     id: 'user_mobinyt420_gmail_com',
@@ -360,16 +353,22 @@ const defaultUsers = [
     phone: "01784949249",
     phoneNumber: "01784949249",
     ffUid: "1234567890",
+    avatar: "assets/images/avatar_user.jpg",
+    authProvider: "google",
     role: "System Administrator (Admin)",
     isAdmin: true,
     status: "Active",
-    walletBalance: 5000,
-    registeredDate: "2026-08-25",
-    registeredAtIso: "2026-08-25T10:00:00.000Z",
-    avatar: "assets/images/avatar_user.jpg"
+    registeredDate: "Aug 28, 2026",
+    registeredAtIso: "2026-08-28T00:00:00.000Z",
+    lastLoginAt: new Date().toISOString(),
+    platform: "Web & Mobile Control",
+    walletBalance: 0
   }
 ];
 
+// ==========================================
+// 3. APPLICATION STATE
+// ==========================================
 const state = {
   activeTab: 'overview',
   tournaments: getStorage('mobinx_tournaments_data', defaultTournaments),
@@ -379,141 +378,115 @@ const state = {
   notices: getStorage('mobinx_notices_config', defaultNotices),
   homePopup: getStorage('mobinx_home_popup', defaultHomePopup),
   appUpdate: getStorage('mobinx_app_update', defaultAppUpdate),
-  downloadLogs: getStorage('mobinx_download_logs', []),
-  users: getStorage('mobinx_registered_users', defaultUsers),
-  userSearchQuery: ''
+  users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
+  userSearchQuery: '',
+  modalCallback: null
 };
 
-// Immediate Startup Purge: Delete any cached dummy users from state and browser storage
-const legacyDummyEmails = [
-  'guest@mobinx.app',
-  'sakib.rusher@gmail.com',
-  'mehedi.ghost@gmail.com',
-  'afsana.queenff@gmail.com',
-  'rifat.booyah99@gmail.com',
-  'tanvir.ff@gmail.com',
-  'shanto.gaming@gmail.com',
-  'mrweb4200@gmail.com',
-  'tanvir.gamer99@gmail.com',
-  'sabbir.ff2026@gmail.com'
-];
-state.users = (state.users || []).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim()));
-setStorage('mobinx_registered_users', state.users);
-
 // ==========================================
-// 3. TAB RENDERERS
+// 4. TAB RENDERING CONTROLLER
 // ==========================================
 
-// TAB 1: OVERVIEW (8 Live Core Metrics from Cloud Firestore Backend - Zero Dummy Data)
+// TAB 1: OVERVIEW
 function renderOverview() {
+  const totalTourns = state.tournaments.length;
+  const liveTourns = state.tournaments.filter(t => t.isRoomReleased || t.status === 'LIVE' || t.status === 'Live').length;
+  const totalDl = state.downloads.length;
+  const totalBanners = state.banners.length;
+  const totalDeals = state.flashDeals.length;
   const totalUsers = state.users.length;
-  const activeUsers = state.users.filter(u => u.status !== 'Suspended').length;
-  const tournCount = state.tournaments.length;
-  const dealsCount = state.flashDeals.length;
-  const bannersCount = state.banners.length;
-  const downloadsCount = state.downloads.length;
-  const dlClicks = (state.downloadLogs || []).length;
 
   return `
     <div class="tab-pane active" id="tab-overview">
       
-      <!-- 8 Real Core Metrics Grid -->
-      <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
+      <!-- Top Hero Banner -->
+      <div class="card" style="background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(6, 182, 212, 0.1)); border-color: rgba(59, 130, 246, 0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h2 style="font-size: 22px; font-weight: 900; color: var(--text-main); margin-bottom: 4px;">Welcome back, Mr. Mobin! 👋</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin: 0;">Live Command & Control Console connected to Cloud Firestore. Changes sync to all apps instantly.</p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="btn-quick-schedule-tourn">🏆 Schedule Tournament</button>
+            <button class="btn btn-secondary" id="btn-quick-add-apk">📥 Add APK Download</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Metric Cards Grid -->
+      <div class="stat-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px;">
         
-        <!-- Metric 1: Total Registered Users -->
         <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Registered Players</div>
-            <div class="stat-val" style="color: #10b981;">${totalUsers}</div>
-            <div class="stat-trend up">👑 Cloud Firestore Live</div>
+          <div class="stat-header">
+            <span class="stat-title">REGISTERED PLAYERS</span>
+            <span class="stat-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">👥</span>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">👑</div>
+          <div class="stat-val">${totalUsers}</div>
+          <div class="stat-footer" style="color: #10b981;">● Real-time Firestore Sync</div>
         </div>
 
-        <!-- Metric 2: Active Verified Players -->
         <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Active Players</div>
-            <div class="stat-val" style="color: #06b6d4;">${activeUsers}</div>
-            <div class="stat-trend up">● Verified Online Status</div>
+          <div class="stat-header">
+            <span class="stat-title">SCHEDULED MATCHES</span>
+            <span class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🏆</span>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">👥</div>
+          <div class="stat-val">${totalTourns}</div>
+          <div class="stat-footer" style="color: ${liveTourns > 0 ? '#ef4444' : '#94a3b8'};">
+            ${liveTourns > 0 ? `🔴 ${liveTourns} Custom Room Live!` : '🟡 No active rooms'}
+          </div>
         </div>
 
-        <!-- Metric 3: Tournaments Live -->
         <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Tournaments Scheduled</div>
-            <div class="stat-val" style="color: #f97316;">${tournCount}</div>
-            <div class="stat-trend up">🏆 Real Cloud Matches</div>
+          <div class="stat-header">
+            <span class="stat-title">APK DOWNLOADS</span>
+            <span class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">📥</span>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">🏆</div>
+          <div class="stat-val">${totalDl}</div>
+          <div class="stat-footer" style="color: #10b981;">● Video Guides Embedded</div>
         </div>
 
-        <!-- Metric 4: Flash Diamond Deals -->
         <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Active Flash Deals</div>
-            <div class="stat-val" style="color: #f59e0b;">${dealsCount}</div>
-            <div class="stat-trend up">⚡ Live Diamond Offers</div>
+          <div class="stat-header">
+            <span class="stat-title">FLASH DEALS</span>
+            <span class="stat-icon" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">⚡</span>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⚡</div>
+          <div class="stat-val">${totalDeals}</div>
+          <div class="stat-footer" style="color: #8b5cf6;">● Active on Home & Store</div>
         </div>
 
-        <!-- Metric 5: Sliders & Banners -->
         <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Active Hero Banners</div>
-            <div class="stat-val" style="color: #8b5cf6;">${bannersCount}</div>
-            <div class="stat-trend up">🖼️ App Sliders Live</div>
+          <div class="stat-header">
+            <span class="stat-title">HERO BANNERS</span>
+            <span class="stat-icon" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">🖼️</span>
           </div>
-          <div class="stat-icon-wrapper" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">🖼️</div>
-        </div>
-
-        <!-- Metric 6: APK Catalog Items -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">APK Catalog Items</div>
-            <div class="stat-val" style="color: #38bdf8;">${downloadsCount}</div>
-            <div class="stat-trend up">📥 Verified APK Packages</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
-        </div>
-
-        <!-- Metric 7: Download Interactions -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Download Interactions</div>
-            <div class="stat-val" style="color: #059669;">${dlClicks}</div>
-            <div class="stat-trend up">📊 Real-Time Clicks</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(5, 150, 105, 0.15); color: #059669;">📊</div>
-        </div>
-
-        <!-- Metric 8: Cloud Backend Health -->
-        <div class="stat-card">
-          <div class="stat-info">
-            <div class="stat-label">Cloud Backend Health</div>
-            <div class="stat-val" style="color: #3b82f6; font-size: 19px;">ONLINE</div>
-            <div class="stat-trend up">🛡️ Zero-Latency Firebase Sync</div>
-          </div>
-          <div class="stat-icon-wrapper" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">🛡️</div>
+          <div class="stat-val">${totalBanners}</div>
+          <div class="stat-footer" style="color: #06b6d4;">● Top Carousel Active</div>
         </div>
 
       </div>
 
-      <!-- Quick Actions Grid -->
-      <div class="card" style="margin-top: 20px;">
+      <!-- Quick Operations Hub -->
+      <div class="card">
         <div class="card-header">
-          <div class="card-title">⚡ Quick Actions</div>
+          <div class="card-title">⚡ Quick Management Shortcuts</div>
         </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <button class="btn btn-primary" id="btn-quick-schedule-tourn">➕ Schedule New Tournament</button>
-          <button class="btn btn-secondary" id="btn-quick-add-apk">📥 Upload New APK Download</button>
-          <button class="btn btn-secondary" id="btn-quick-manage-banners">🖼️ Manage Sliders & Banners</button>
-          <button class="btn btn-secondary" id="btn-quick-manage-popup">🖼️ Configure Home Notice Popup</button>
-          <button class="btn btn-secondary" id="btn-quick-manage-update">📲 Manage Play Store Update</button>
-          <button class="btn btn-secondary" id="btn-quick-view-players">👥 View Players Directory</button>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <button class="btn btn-secondary" id="btn-quick-manage-banners" style="justify-content: flex-start; padding: 12px 16px;">
+            <span style="font-size: 18px; margin-right: 8px;">🖼️</span>
+            <span>Manage Hero Banners</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-quick-manage-popup" style="justify-content: flex-start; padding: 12px 16px;">
+            <span style="font-size: 18px; margin-right: 8px;">📢</span>
+            <span>In-App Notice Popup</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-quick-manage-update" style="justify-content: flex-start; padding: 12px 16px;">
+            <span style="font-size: 18px; margin-right: 8px;">🚀</span>
+            <span>Play Store App Updates</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-quick-view-players" style="justify-content: flex-start; padding: 12px 16px;">
+            <span style="font-size: 18px; margin-right: 8px;">👥</span>
+            <span>View Registered Players (${totalUsers})</span>
+          </button>
         </div>
       </div>
 
@@ -521,177 +494,151 @@ function renderOverview() {
   `;
 }
 
-// TAB 2: TOURNAMENTS & ROOMS (Instant Cancel/Delete Lifecycle & Prominent Solo/Duo/Squad buttons)
+// TAB 2: TOURNAMENTS & ROOMS
 function renderTournaments() {
-  const todayIso = new Date().toISOString().slice(0, 16);
-
   return `
     <div class="tab-pane active" id="tab-tournaments">
       
-      <!-- Schedule Match Form -->
+      <!-- Add Tournament Form -->
       <div class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">🏆 Schedule & Publish Free Fire Tournament</div>
-            <div class="card-subtitle">Publishes in real-time with reverse countdown timer for all app players</div>
+            <div class="card-title">🏆 Schedule New Tournament / Battle Royale Room</div>
+            <div class="card-subtitle">Publishes instantly to Android App & Cloud Firestore in real-time</div>
           </div>
         </div>
 
         <form id="form-add-tournament">
           <div class="form-grid">
-            <div class="form-group" style="grid-column: 1 / -1;">
+            <div class="form-group">
               <label class="form-label">Tournament Title *</label>
-              <input type="text" id="new-t-title" class="form-control" placeholder="e.g. BR Squad Championship #45" required />
+              <input type="text" id="new-t-title" class="form-control" placeholder="e.g. Free Fire Squad Headshot Cup" required />
             </div>
 
-            <!-- Game Mode High-Contrast Clickable Buttons (Solo, Duo, Squad) -->
             <div class="form-group">
               <label class="form-label">Game Mode *</label>
-              <div style="display: flex; gap: 8px;" id="mode-btn-group">
-                <button type="button" class="mode-select-pill active" data-mode="Solo">
-                  👤 Solo
-                </button>
-                <button type="button" class="mode-select-pill" data-mode="Duo">
-                  👥 Duo
-                </button>
-                <button type="button" class="mode-select-pill" data-mode="Squad (4v4)">
-                  🛡️ Squad (4v4)
-                </button>
+              <div class="mode-btn-group" id="mode-btn-group">
+                <div class="mode-select-pill active" data-mode="Squad (4v4)">Squad (4v4)</div>
+                <div class="mode-select-pill" data-mode="Solo BR">Solo BR</div>
+                <div class="mode-select-pill" data-mode="Duo Battle">Duo Battle</div>
+                <div class="mode-select-pill" data-mode="Clash Squad">Clash Squad</div>
+                <div class="mode-select-pill" data-mode="Headshot Only">Headshot Only</div>
               </div>
-              <input type="hidden" id="new-t-mode" value="Solo" />
+              <input type="hidden" id="new-t-mode" value="Squad (4v4)" />
             </div>
 
-            <!-- Free Fire 5 Official Maps -->
             <div class="form-group">
-              <label class="form-label">Free Fire Map *</label>
+              <label class="form-label">Map *</label>
               <select id="new-t-map" class="form-control">
                 <option value="Bermuda">Bermuda</option>
-                <option value="NeXTerra">NeXTerra</option>
                 <option value="Purgatory">Purgatory</option>
                 <option value="Kalahari">Kalahari</option>
                 <option value="Alpine">Alpine</option>
+                <option value="Nexterra">Nexterra</option>
               </select>
             </div>
 
-            <!-- Match Date & Time with Past Date Prevention -->
             <div class="form-group">
-              <label class="form-label">Match Date & Start Time * (For Live Reverse Timer)</label>
-              <input type="datetime-local" id="new-t-datetime" class="form-control" min="${todayIso}" value="${todayIso}" required />
+              <label class="form-label">Match Date & Time *</label>
+              <input type="datetime-local" id="new-t-datetime" class="form-control" required />
             </div>
 
-            <!-- Entry Fee Options -->
             <div class="form-group">
-              <label class="form-label">Entry Fee *</label>
-              <div style="display: flex; gap: 6px;">
-                <select id="new-t-entry-type" class="form-control" style="width: 110px;">
-                  <option value="Free">Free</option>
-                  <option value="Paid">Paid</option>
+              <label class="form-label">Entry Fee Type *</label>
+              <select id="new-t-entry-type" class="form-control">
+                <option value="Free">Free (100% Free Entry)</option>
+                <option value="Paid">Paid Diamond Entry</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Entry Fee Amount</label>
+              <input type="text" id="new-t-entry-val" class="form-control" value="Free" disabled />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Total Prize Pool (BDT ৳) *</label>
+              <div style="display: flex; gap: 8px;">
+                <select id="new-t-prize-currency" class="form-control" style="width: 80px;">
+                  <option value="৳">৳ BDT</option>
+                  <option value="💎">💎 FF</option>
                 </select>
-                <input type="text" id="new-t-entry-val" class="form-control" placeholder="Free" value="Free" />
+                <input type="text" id="new-t-prize-pool" class="form-control" placeholder="e.g. 1500" required />
               </div>
             </div>
 
-            <!-- Prize Currency Switcher -->
             <div class="form-group">
-              <label class="form-label">Prize Currency *</label>
-              <select id="new-t-prize-currency" class="form-control">
-                <option value="৳">BDT Cash (৳)</option>
-                <option value="💎">Free Fire Diamonds (💎)</option>
-              </select>
+              <label class="form-label">Max Player Slots *</label>
+              <input type="number" id="new-t-slots" class="form-control" value="48" min="2" max="100" required />
             </div>
 
-            <!-- 1st Place Win Prize -->
-            <div class="form-group">
-              <label class="form-label">1st Place (Booyah Prize) *</label>
-              <input type="text" id="new-t-prize-1st" class="form-control" placeholder="৳1,000" value="৳1,000" required />
-            </div>
-
-            <!-- 2nd Place Prize -->
-            <div class="form-group">
-              <label class="form-label">2nd Place Prize (Optional)</label>
-              <input type="text" id="new-t-prize-2nd" class="form-control" placeholder="৳350" />
-            </div>
-
-            <!-- 3rd Place Prize -->
-            <div class="form-group">
-              <label class="form-label">3rd Place Prize (Optional)</label>
-              <input type="text" id="new-t-prize-3rd" class="form-control" placeholder="৳150" />
-            </div>
-
-            <!-- Per Kill / MVP Prize -->
-            <div class="form-group">
-              <label class="form-label">Per Kill / MVP Prize (Optional)</label>
-              <input type="text" id="new-t-prize-kill" class="form-control" placeholder="৳20 / Kill" />
-            </div>
-
-            <!-- Total Slots -->
-            <div class="form-group">
-              <label class="form-label">Total Slots</label>
-              <input type="number" id="new-t-slots" class="form-control" value="48" min="8" max="100" />
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Banner Image (URL or Default)</label>
+              <input type="text" id="new-t-banner" class="form-control" placeholder="assets/images/banner_esports.jpg or https://..." value="assets/images/banner_esports.jpg" />
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">🚀 Publish Tournament to App</button>
+          <button type="submit" class="btn btn-primary" style="margin-top: 14px;">🚀 Publish Tournament Live</button>
         </form>
       </div>
 
-      <!-- Active Tournaments List & Custom Room Credentials Releaser -->
+      <!-- Published Tournaments Feed -->
       <div class="card">
         <div class="card-header">
-          <div>
-            <div class="card-title">🎮 Active Tournaments & Instant Room Credential Releaser</div>
-            <div class="card-subtitle">Release Room ID & Password or Cancel/Delete live matches anytime!</div>
-          </div>
+          <div class="card-title">🏆 Active & Scheduled Tournaments (${state.tournaments.length})</div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 14px;">
           ${state.tournaments.length === 0 ? `
-            <div style="text-align: center; padding: 32px 16px; background: var(--bg-body); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
+            <div style="text-align: center; padding: 40px 16px; color: var(--text-muted);">
               <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
-              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Active Tournaments</div>
-              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-                Use the form above to schedule a new tournament. It will sync to players in real-time.
-              </div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Tournaments Scheduled Yet</div>
+              <div style="font-size: 12px; margin-top: 4px;">Use the form above to schedule a match and release custom rooms!</div>
             </div>
           ` : state.tournaments.map(t => {
-            const isLive = t.isRoomReleased || (t.startTimestamp && t.startTimestamp <= Date.now());
+            const isLive = !!t.isRoomReleased || t.status === 'LIVE' || t.status === 'Live';
+            const roomIdVal = t.roomId || (t.roomCredentials && t.roomCredentials.roomId) || '';
+            const roomPassVal = t.roomPass || (t.roomCredentials && t.roomCredentials.password) || '';
 
             return `
               <div style="background: var(--bg-body); border: 1.5px solid ${isLive ? '#ef4444' : 'var(--border-color)'}; border-radius: var(--radius-lg); padding: 18px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                   <div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                       <h3 style="font-size: 16px; font-weight: 800; color: var(--text-main);">${t.title}</h3>
                       <span class="badge" style="${isLive ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(245, 158, 11, 0.2); color: #fbbf24;'} font-weight: 700;">
-                        ${isLive ? '🔴 MATCH IS LIVE / ROOM RELEASED' : '🟡 UPCOMING'}
+                        ${isLive ? '🔴 MATCH IS LIVE / ROOM RELEASED' : '🟡 ' + (t.status || 'UPCOMING')}
                       </span>
                     </div>
                     <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-                      🎮 Mode: <strong>${t.gameMode || t.mode}</strong> | 🗺️ Map: <strong>${t.map}</strong> | ⏰ Time: <strong>${t.matchTime}</strong>
+                      🎮 Mode: <strong>${t.gameMode || t.mode || 'Squad (4v4)'}</strong> | 🗺️ Map: <strong>${t.map || 'Bermuda'}</strong> | ⏰ Time: <strong>${t.matchTime || t.startDateTime || 'Tonight'}</strong>
                     </div>
                     <div style="font-size: 12px; color: #10b981; font-weight: 700; margin-top: 2px;">
-                      🏆 Prize: ${t.prizePool || t.prize1st} ${t.prize2nd ? `| 🥈 2nd: ${t.prize2nd}` : ''} ${t.prizeKill ? `| 🎯 ${t.prizeKill}` : ''}
+                      🏆 Prize: ${t.prizePool || '৳ 1,500'} | Entry: ${t.entryFee || 'Free'} | Slots: ${t.slotsFilled || 0}/${t.slotsTotal || t.maxSlots || 48}
                     </div>
                   </div>
 
-                  <div style="display: flex; gap: 8px;">
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary btn-edit-tourn" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
+                      ✏️ Edit Match
+                    </button>
                     <button class="btn btn-danger btn-delete-tourn" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
-                      ${isLive ? '🚫 Cancel & Delete Live Match' : '🗑️ Delete Match'}
+                      🗑️ Delete
                     </button>
                   </div>
                 </div>
 
                 <!-- Live Room ID & Password Releaser Box -->
-                <div class="room-releaser-box" style="${isLive ? 'border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);' : ''}">
+                <div class="room-releaser-box" style="${isLive ? 'border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);' : ''} margin-top: 14px; padding: 14px; background: var(--bg-card); border-radius: var(--radius-md); border: 1px dashed var(--border-light);">
                   <div style="font-size: 12px; font-weight: 800; color: ${isLive ? '#f87171' : '#34d399'}; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
                     <span>🔑</span>
                     <span>INSTANT CUSTOM ROOM CREDENTIALS</span>
                   </div>
                   <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px;">
-                    <input type="text" id="room-id-${t.id}" class="form-control" placeholder="Room ID (e.g. 9841284)" value="${t.roomId || ''}" />
-                    <input type="text" id="room-pass-${t.id}" class="form-control" placeholder="Room Password (e.g. 1234)" value="${t.roomPass || ''}" />
+                    <input type="text" id="room-id-${t.id}" class="form-control" placeholder="Room ID (e.g. 9841284)" value="${roomIdVal}" />
+                    <input type="text" id="room-pass-${t.id}" class="form-control" placeholder="Room Password (e.g. 1234)" value="${roomPassVal}" />
                     <button class="btn btn-success btn-release-room" data-id="${t.id}">
-                      ${t.isRoomReleased ? '🔄 Update Room ID' : '📢 Release Room ID Now'}
+                      ${isLive ? '🔄 Update Room ID' : '📢 Release Room ID Now'}
                     </button>
                   </div>
                 </div>
@@ -762,11 +709,6 @@ function renderDownloads() {
                 <input type="url" class="form-control act-url-input" placeholder="Download Target Link (https://...)" value="https://mrmobin.blogspot.com/" required />
                 <button type="button" class="btn btn-danger btn-remove-act-row" style="padding: 6px 10px;">✕</button>
               </div>
-              <div class="action-btn-row" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px;">
-                <input type="text" class="form-control act-label-input" placeholder="Button Name (e.g. Join Telegram)" value="Join Telegram Channel" required />
-                <input type="url" class="form-control act-url-input" placeholder="Download Target Link (https://...)" value="https://t.me/mobinx_official" required />
-                <button type="button" class="btn btn-danger btn-remove-act-row" style="padding: 6px 10px;">✕</button>
-              </div>
             </div>
           </div>
 
@@ -796,6 +738,7 @@ function renderDownloads() {
                 </div>
 
                 <div style="display: flex; gap: 6px;">
+                  <button class="btn btn-secondary btn-edit-download" data-id="${dl.id}" style="padding: 6px 12px; font-size: 12px;">✏️ Edit</button>
                   <button class="btn btn-danger btn-delete-download" data-id="${dl.id}" style="padding: 6px 12px; font-size: 12px;">🗑️ Delete</button>
                 </div>
               </div>
@@ -847,7 +790,7 @@ function renderFlashDeals() {
               <input type="text" id="new-f-bonus" class="form-control" placeholder="+52 Bonus" value="+50 Bonus" />
             </div>
           </div>
-          <button type="submit" class="btn btn-primary">➕ Publish Flash Deal</button>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">➕ Publish Flash Deal</button>
         </form>
       </div>
 
@@ -858,13 +801,13 @@ function renderFlashDeals() {
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
           ${state.flashDeals.map(d => `
-            <div class="item-card">
+            <div class="item-card" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-body); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
               <div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-weight: 800; color: var(--text-main);">${d.diamondAmount}</span>
-                  <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">${d.badge}</span>
+                  <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">${d.badge || 'DEAL'}</span>
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
                   Price: <strong style="color:#10b981;">${d.price}</strong> | Bonus: ${d.bonus}
                 </div>
               </div>
@@ -881,7 +824,7 @@ function renderFlashDeals() {
   `;
 }
 
-// TAB 5: HERO & PROMO BANNERS (With File Upload & Direct Firestore Sync)
+// TAB 5: HERO & PROMO BANNERS
 function renderBanners() {
   return `
     <div class="tab-pane active" id="tab-banners">
@@ -901,7 +844,6 @@ function renderBanners() {
               <input type="text" id="new-b-title" class="form-control" placeholder="e.g. Clash Squad Season 17" required />
             </div>
 
-            <!-- Image URL with Direct File Upload Option -->
             <div class="form-group" style="grid-column: 1 / -1;">
               <label class="form-label">Banner Image (URL or Upload from Device) *</label>
               <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -917,16 +859,13 @@ function renderBanners() {
             </div>
 
             <div class="form-group">
-              <label class="form-label">Banner Type</label>
-              <select id="new-b-type" class="form-control">
-                <option value="hero">Hero 16:9 Carousel (Top)</option>
-                <option value="promo">Promotional Banner</option>
-              </select>
+              <label class="form-label">Action Target Link (Optional)</label>
+              <input type="url" id="new-b-url" class="form-control" placeholder="https://t.me/mobinx_official or https://noobtopup.com/" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Action Target Link (Optional)</label>
-              <input type="url" id="new-b-url" class="form-control" placeholder="https://t.me/mobinx_official or https://noobtopup.com/" />
+              <label class="form-label">Badge</label>
+              <input type="text" id="new-b-badge" class="form-control" placeholder="HOT / NEW / ESPORTS" value="HOT DEAL" />
             </div>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;">➕ Publish Banner to App</button>
@@ -940,7 +879,7 @@ function renderBanners() {
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
           ${state.banners.map(b => `
-            <div class="item-card">
+            <div class="item-card" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-body); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
               <div style="display: flex; align-items: center; gap: 12px;">
                 <img src="${b.image}" alt="${b.title}" style="width: 80px; height: 45px; border-radius: 6px; object-fit: cover; background: #000;" onerror="this.src='assets/images/banner_hero1.jpg'" />
                 <div>
@@ -971,7 +910,7 @@ function renderSystemUrls() {
   return `
     <div class="tab-pane active" id="tab-urls">
       
-      <!-- 1. In-App Home Screen Notice Popup Modal Manager (Matching Screenshot) -->
+      <!-- 1. In-App Home Screen Notice Popup Modal Manager -->
       <div class="card">
         <div class="card-header">
           <div>
@@ -986,9 +925,9 @@ function renderSystemUrls() {
           </div>
         </div>
 
-        <div class="mockup-flex-layout">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
           <!-- Left Editor Form -->
-          <form id="form-save-home-popup" style="flex: 1;">
+          <form id="form-save-home-popup">
             <div class="form-group">
               <label class="form-label">Bengali / English Announcement Text *</label>
               <textarea 
@@ -1009,7 +948,7 @@ function renderSystemUrls() {
                   class="form-control" 
                   placeholder="assets/images/banner_hero1.jpg or https://..." 
                   value="${popup.image || ''}" 
-                  style="flex: 1; min-width: 200px;" 
+                  style="flex: 1; min-width: 180px;" 
                 />
                 <label class="btn btn-secondary" style="cursor: pointer; padding: 10px 14px; font-size: 12px; margin: 0; display: inline-flex; align-items: center; gap: 6px;">
                   <span>📁 Upload Image</span>
@@ -1018,7 +957,7 @@ function renderSystemUrls() {
               </div>
             </div>
 
-            <div class="form-grid">
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
               <div class="form-group">
                 <label class="form-label">Action Button Label *</label>
                 <input 
@@ -1026,86 +965,70 @@ function renderSystemUrls() {
                   id="admin-popup-btn-text" 
                   class="form-control" 
                   value="${popup.buttonText || 'ক্লিক করুন'}" 
-                  placeholder="e.g. ক্লিক করুন / যোগাযোগ করুন" 
+                  placeholder="ক্লিক করুন" 
                   required 
                 />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Action Redirect URL (Telegram / Web) *</label>
+                <label class="form-label">Action Button URL *</label>
                 <input 
                   type="text" 
                   id="admin-popup-btn-url" 
                   class="form-control" 
                   value="${popup.buttonUrl || 'https://t.me/mrmobin1m'}" 
-                  placeholder="https://t.me/mrmobin1m or https://noobtopup.com/" 
+                  placeholder="https://t.me/..." 
                   required 
                 />
               </div>
             </div>
 
-            <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="admin-popup-once" style="width: 17px; height: 17px; cursor: pointer;" ${popup.showOncePerSession ? 'checked' : ''} />
+            <div class="form-group" style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="admin-popup-once" style="width: 16px; height: 16px;" ${popup.showOncePerSession !== false ? 'checked' : ''} />
               <label for="admin-popup-once" style="font-size: 12px; color: var(--text-muted); cursor: pointer;">
-                Show only once per user session (prevents spamming users)
+                Show only once per user session (Recommended)
               </label>
             </div>
 
-            <button type="submit" id="btn-save-home-popup" class="btn btn-primary" style="margin-top: 16px; width: 100%; padding: 12px; font-size: 14px;">
-              💾 Save & Deploy Home Notice Popup
+            <button type="submit" id="btn-save-home-popup" class="btn btn-primary" style="margin-top: 14px; width: 100%; padding: 12px; font-size: 14px;">
+              💾 Save & Deploy Notice Popup to App
             </button>
           </form>
 
-          <!-- Right Live Mobile Mockup Preview -->
-          <div>
-            <div style="font-size: 12px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">
-              📱 Live Mobile Screen Preview
+          <!-- Right Live Mobile Preview Mockup -->
+          <div style="background: #000000; border-radius: 20px; padding: 20px 14px; border: 2px solid var(--border-light); display: flex; flex-direction: column; align-items: center;">
+            <div style="font-size: 10.5px; font-weight: 800; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px;">
+              📱 Live Mobile App Screen Preview
             </div>
 
-            <div class="phone-mockup-frame">
-              <div class="phone-notch-bar">
-                <div class="phone-notch-pill"></div>
+            <!-- Popup Card Exact Replica -->
+            <div style="background: #ffffff; border-radius: 18px; width: 100%; max-width: 280px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; color: #0f172a; text-align: center;">
+              
+              <div id="mockup-img-container" style="${popup.image ? 'display: block;' : 'display: none;'} max-height: 140px; overflow: hidden; background: #000;">
+                <img id="mockup-popup-img" src="${popup.image || ''}" alt="Notice Banner" style="width: 100%; height: 140px; object-fit: cover;" />
               </div>
 
-              <div class="phone-screen">
-                <div class="mockup-popup-card">
-                  
-                  <div id="mockup-img-container" style="display: ${popup.image ? 'block' : 'none'};">
-                    <img 
-                      id="mockup-popup-img" 
-                      class="mockup-banner-img" 
-                      src="${popup.image || ''}" 
-                      alt="Notice Banner" 
-                      onerror="this.parentElement.style.display='none'" 
-                    />
-                  </div>
-
-                  <div class="mockup-popup-body">
-                    <p id="mockup-popup-text" class="mockup-popup-text">
-                      ${popup.description || 'অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।'}
-                    </p>
-
-                    <div style="display: flex; justify-content: flex-start;">
-                      <button type="button" id="mockup-popup-btn" class="mockup-action-btn">
-                        ${popup.buttonText || 'ক্লিক করুন'}
-                      </button>
-                    </div>
-
-                    <div style="display: flex; justify-content: center; margin-top: 16px;">
-                      <button type="button" class="mockup-close-pill">
-                        ✗ CLOSE
-                      </button>
-                    </div>
-                  </div>
-
+              <div style="padding: 18px 14px 14px 14px; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                <div id="mockup-popup-text" style="font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.5;">
+                  ${popup.description || popup.title || 'অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।'}
                 </div>
+
+                <a id="mockup-popup-btn" href="javascript:void(0)" style="display: block; width: 100%; padding: 9px 0; background: #0066ff; color: #ffffff; border-radius: 8px; font-size: 12px; font-weight: 800; text-decoration: none; box-shadow: 0 4px 12px rgba(0, 102, 255, 0.35);">
+                  ${popup.buttonText || 'ক্লিক করুন'}
+                </a>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <div style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: #0066ff; color: #ffffff; font-size: 16px; font-weight: 900; box-shadow: 0 2px 10px rgba(0, 102, 255, 0.5);">
+                ✕
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 2. Google Play Store App Version & Update Controller -->
+      <!-- 2. Google Play Store App Update Controller -->
       <div class="card">
         <div class="card-header">
           <div>
@@ -1205,10 +1128,9 @@ function renderSystemUrls() {
   `;
 }
 
-// TAB 7: PLAYERS DIRECTORY (With 1-Click Copy, Direct Call, and CSV / JSON Export)
+// TAB 7: PLAYERS DIRECTORY
 function renderUsers() {
   const query = (state.userSearchQuery || '').toLowerCase().trim();
-  // Always sort in reverse chronological order (Newest registered player on TOP)
   const sortedUsers = [...state.users].sort((a, b) => (b.userId || 0) - (a.userId || 0));
   const filtered = sortedUsers.filter(u => {
     if (!query) return true;
@@ -1230,17 +1152,17 @@ function renderUsers() {
             <div class="card-subtitle">Real-time live synchronization with Cloud Firestore users database (Latest on Top)</div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="btn-export-csv" id="btn-export-users-csv" title="Export for Google Sheets / Excel / AI">
-              📥 Export CSV (Google Sheets)
+            <button class="btn btn-secondary" id="btn-export-users-csv" style="padding: 6px 12px; font-size: 12px;" title="Export for Google Sheets / Excel">
+              📥 Export CSV
             </button>
-            <button class="btn-export-csv" id="btn-export-users-marketing" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;" title="Export Leads List for SMS / WhatsApp / Telegram Marketing">
-              📢 Export Marketing Leads (.txt)
+            <button class="btn btn-secondary" id="btn-export-users-marketing" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; padding: 6px 12px; font-size: 12px;" title="Export Leads List for SMS / WhatsApp / Telegram Marketing">
+              📢 Export Leads (.txt)
             </button>
-            <button class="btn-export-json" id="btn-export-users-json" title="Export as JSON for backup & automation">
+            <button class="btn btn-secondary" id="btn-export-users-json" style="padding: 6px 12px; font-size: 12px;" title="Export as JSON for backup & automation">
               📄 Export JSON
             </button>
             <button class="btn btn-secondary" id="btn-refresh-users" style="padding: 6px 12px; font-size: 12px;">
-              🔄 Refresh From Cloud
+              🔄 Refresh Cloud
             </button>
           </div>
         </div>
@@ -1257,7 +1179,7 @@ function renderUsers() {
               <div style="font-size: 32px; margin-bottom: 8px;">👥</div>
               <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Users Registered Yet</div>
               <div style="font-size: 12px; color: var(--text-muted); max-width: 420px; margin: 4px auto 0 auto;">
-                As soon as users open the app and sign in or register with Google, their sequential User ID (#1, #2, #3...), Name, Gmail, Phone, and Free Fire UID will automatically appear here in 100% real-time!
+                As soon as users open the app and sign in with Google, their sequential User ID (#1, #2, #3...), Name, Gmail, Phone, and Free Fire UID will automatically appear here in 100% real-time!
               </div>
             </div>
           ` : filtered.map((u, idx) => {
@@ -1266,7 +1188,7 @@ function renderUsers() {
             const avatarUrl = u.avatar && !u.avatar.includes('dicebear') ? u.avatar : fallbackAvatar;
 
             return `
-              <div class="player-management-card" data-user-id="${u.id}">
+              <div class="player-management-card" data-user-id="${u.id}" style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
                 <!-- Card Header Row -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
                   <div style="display: flex; align-items: center; gap: 8px;">
@@ -1297,7 +1219,7 @@ function renderUsers() {
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
                       <span>📧 <strong>Gmail:</strong> ${u.email || 'Not provided'}</span>
                       ${u.email ? `
-                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.email}" data-label="Gmail" title="Copy Gmail">
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.email}" data-label="Gmail" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
                           📋 Copy
                         </button>
                       ` : ''}
@@ -1307,10 +1229,10 @@ function renderUsers() {
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
                       <span>📱 <strong>Phone:</strong> ${u.phone || 'Not added'}</span>
                       ${u.phone ? `
-                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.phone}" data-label="Phone" title="Copy Phone Number">
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.phone}" data-label="Phone" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
                           📋 Copy
                         </button>
-                        <a href="tel:${u.phone}" class="btn-call-tag" title="Call Player Directly">
+                        <a href="tel:${u.phone}" style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: rgba(16, 185, 129, 0.2); color: #34d399; text-decoration: none; font-weight: 700;">
                           📞 Call
                         </a>
                       ` : ''}
@@ -1318,22 +1240,21 @@ function renderUsers() {
 
                     <!-- Free Fire UID Row with Copy -->
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
-                      <span>🎯 <strong>FF UID:</strong> <strong style="color: var(--text-main);">${u.ffUid || 'Not linked'}</strong></span>
+                      <span>🎯 <strong>FF UID:</strong> ${u.ffUid || 'Not set'}</span>
                       ${u.ffUid ? `
-                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.ffUid}" data-label="Free Fire UID" title="Copy Free Fire UID">
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.ffUid}" data-label="FF UID" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">
                           📋 Copy
                         </button>
                       ` : ''}
                     </div>
 
-                    <!-- Device Platform & Joined Date -->
-                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                      Device: <strong>${u.platform || 'Android Mobile'}</strong> | Joined: <strong>${u.registeredDate || 'Recent'}</strong>
+                    <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">
+                      Registered: ${u.registeredDate || 'Recently'} • ${u.platform || 'Android Mobile'}
                     </div>
                   </div>
 
                   <!-- Actions Column -->
-                  <div style="display: flex; flex-direction: column; gap: 6px; align-self: center;">
+                  <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
                     <button class="btn btn-secondary btn-edit-player" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
                       ✏️ Edit
                     </button>
@@ -1356,23 +1277,25 @@ function renderUsers() {
 }
 
 // ==========================================
-// EXPORT USERS (CSV for Google Sheets & JSON)
+// 5. EXPORT HELPERS (CSV & JSON & Leads)
 // ==========================================
 function exportUsersCSV() {
   const users = state.users.length > 0 ? state.users : defaultUsers;
-
   let csvContent = "User ID,Player Number,Full Name,Gmail,Phone Number,Free Fire UID,Role,Status,Registered Date\n";
-  users.forEach((u, idx) => {
-    const id = `"${u.id || ''}"`;
-    const num = `"${u.userId || u.playerNumber || (idx + 1)}"`;
-    const name = `"${(u.fullName || u.username || '').replace(/"/g, '""')}"`;
-    const email = `"${(u.email || '').replace(/"/g, '""')}"`;
-    const phone = `"${(u.phone || u.phoneNumber || '').replace(/"/g, '""')}"`;
-    const ffUid = `"${(u.ffUid || '').replace(/"/g, '""')}"`;
-    const role = `"${(u.role || 'Player').replace(/"/g, '""')}"`;
-    const status = `"${(u.status || 'Active').replace(/"/g, '""')}"`;
-    const date = `"${(u.registeredDate || u.createdAt || '').replace(/"/g, '""')}"`;
-    csvContent += `${id},${num},${name},${email},${phone},${ffUid},${role},${status},${date}\n`;
+
+  users.forEach(u => {
+    const row = [
+      u.userId || '',
+      u.playerNumber || '',
+      `"${(u.fullName || u.username || '').replace(/"/g, '""')}"`,
+      `"${(u.email || '').replace(/"/g, '""')}"`,
+      `"${(u.phone || '').replace(/"/g, '""')}"`,
+      `"${(u.ffUid || '').replace(/"/g, '""')}"`,
+      `"${(u.role || 'Member').replace(/"/g, '""')}"`,
+      `"${(u.status || 'Active').replace(/"/g, '""')}"`,
+      `"${(u.registeredDate || '').replace(/"/g, '""')}"`
+    ];
+    csvContent += row.join(",") + "\n";
   });
 
   const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1384,27 +1307,26 @@ function exportUsersCSV() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast('📥 Users Database (CSV) exported successfully for Google Sheets!', 'success');
+  showToast('📥 Users CSV exported successfully for Google Sheets / Excel!', 'success');
 }
 
 function exportUsersMarketingList() {
   const users = state.users.length > 0 ? state.users : defaultUsers;
-  let text = "========================================================\n";
-  text += "MOBIN X GAMING ECOSYSTEM - MARKETING LEADS DIRECTORY\n";
-  text += `Generated: ${new Date().toLocaleString()}\n`;
-  text += `Total Contacts: ${users.length}\n`;
-  text += "========================================================\n\n";
+  let leadsContent = "=====================================================\n";
+  leadsContent += "MOBIN X GAMING ECOSYSTEM - MARKETING LEADS LIST\n";
+  leadsContent += `Exported: ${new Date().toLocaleString()}\n`;
+  leadsContent += `Total Verified Players: ${users.length}\n`;
+  leadsContent += "=====================================================\n\n";
 
-  users.forEach((u, idx) => {
-    const num = u.userId || u.playerNumber || (idx + 1);
-    const name = u.fullName || u.username || 'Gamer';
-    const phone = u.phone || u.phoneNumber || 'N/A';
-    const email = u.email || 'N/A';
-    const ffUid = u.ffUid || 'N/A';
-    text += `#${num} | Name: ${name} | Phone: ${phone} | Gmail: ${email} | FF UID: ${ffUid}\n`;
-  });
+  leadsContent += "--- PHONE NUMBERS (SMS / WhatsApp Broadcast) ---\n";
+  const phones = users.map(u => u.phone).filter(p => p && p.trim().length >= 10);
+  leadsContent += phones.join("\n") + "\n\n";
 
-  const blob = new Blob(["\uFEFF" + text], { type: 'text/plain;charset=utf-8;' });
+  leadsContent += "--- GMAIL / EMAIL ADDRESSES (Email Marketing) ---\n";
+  const emails = users.map(u => u.email).filter(e => e && e.includes('@'));
+  leadsContent += emails.join("\n") + "\n\n";
+
+  const blob = new Blob([leadsContent], { type: 'text/plain;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1427,102 +1349,55 @@ function exportUsersJSON() {
   showToast('📄 Users Database (JSON) exported successfully!', 'success');
 }
 
-// TAB 8: AUTHENTICATION & SECURITY FEATURE FLAGS
-function renderAuthSettings() {
-  const authConfig = state.authSettings || {
-    googleSignUpEnabled: true,
-    manualSignUpEnabled: true,
-    googleLoginEnabled: true,
-    manualLoginEnabled: true,
-    topUpEnabled: true
-  };
+// ==========================================
+// 6. MODAL SYSTEM
+// ==========================================
+function openAdminModal(title, bodyHtml, onSaveCallback) {
+  const overlay = document.getElementById('admin-modal-overlay');
+  const modalTitle = document.getElementById('admin-modal-title');
+  const modalBody = document.getElementById('admin-modal-body');
+  const btnSave = document.getElementById('admin-modal-save-btn');
 
-  return `
-    <div style="display: flex; flex-direction: column; gap: 20px;">
-      
-      <!-- Top Introduction Card -->
-      <div class="card" style="border-left: 4px solid var(--primary);">
-        <div style="display: flex; align-items: center; gap: 14px;">
-          <div style="width: 48px; height: 48px; border-radius: 14px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">
-            🔐
-          </div>
-          <div>
-            <h2 style="font-size: 18px; font-weight: 900; color: var(--text-main); margin: 0 0 2px 0;">Authentication & System Feature Flags</h2>
-            <p style="font-size: 12.5px; color: var(--text-muted); margin: 0;">Remotely control available sign up, login methods, and ecosystem features in the Android app via Cloud Firestore.</p>
-          </div>
-        </div>
-      </div>
+  if (!overlay || !modalTitle || !modalBody) return;
 
-      <!-- Feature Controls Form -->
-      <form id="form-auth-settings">
-        
-        <!-- SECTION 1: AUTHENTICATION SYSTEM -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">🌐 GOOGLE AUTHENTICATION SYSTEM</div>
-              <div class="card-subtitle">Control 1-Tap Google Sign-In and profile creation for gamers</div>
-            </div>
-          </div>
+  modalTitle.textContent = title;
+  modalBody.innerHTML = bodyHtml;
+  state.modalCallback = onSaveCallback;
 
-          <div style="display: flex; flex-direction: column; gap: 14px;">
-            <!-- Google Sign Up / Sign In -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-              <div>
-                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                  <span>🌐 Google Authentication (1-Tap Sign In)</span>
-                  <span id="badge-google-signup" class="badge" style="background: ${authConfig.googleSignUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.googleSignUpEnabled !== false ? '#34d399' : '#f87171'};">
-                    ${authConfig.googleSignUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Enables Google Sign-In on the onboarding & profile setup screen</div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="flag-google-signup" ${authConfig.googleSignUpEnabled !== false ? 'checked' : ''} />
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- SECTION 2: ECOSYSTEM FEATURE FLAGS -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">💎 ECOSYSTEM FEATURE FLAGS</div>
-              <div class="card-subtitle">Control in-app entry points and optional modules</div>
-            </div>
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 14px;">
-            <!-- Top Up Store Entry -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-              <div>
-                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                  <span>💎 Top Up Store Access</span>
-                  <span id="badge-topup-access" class="badge" style="background: ${authConfig.topUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.topUpEnabled !== false ? '#34d399' : '#f87171'};">
-                    ${authConfig.topUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (HIDDEN)'}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Controls visibility of Top Up entry points across the client app</div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="flag-topup-access" ${authConfig.topUpEnabled !== false ? 'checked' : ''} />
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <button type="submit" id="btn-save-auth-settings" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 800; margin-top: 6px; box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);">
-          💾 Save & Deploy Feature Flags to Cloud Firestore
-        </button>
-      </form>
-
-    </div>
-  `;
+  overlay.classList.add('active');
 }
 
+function closeAdminModal() {
+  const overlay = document.getElementById('admin-modal-overlay');
+  if (overlay) overlay.classList.remove('active');
+  state.modalCallback = null;
+}
+
+// ==========================================
+// 7. TOAST NOTIFICATIONS
+// ==========================================
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `admin-toast ${type}`;
+  toast.innerHTML = `
+    <span>${type === 'success' ? '✅' : (type === 'warning' ? '⚠️' : 'ℹ️')}</span>
+    <span>${message}</span>
+  `;
+
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+// ==========================================
+// 8. TAB CONTROLLER & EVENT BINDINGS
+// ==========================================
 function renderCurrentTab() {
   const content = document.getElementById('tab-content-area');
   const title = document.getElementById('current-page-title');
@@ -1554,12 +1429,8 @@ function renderCurrentTab() {
       content.innerHTML = renderSystemUrls();
       break;
     case 'users':
-      if (title) title.textContent = 'Users';
+      if (title) title.textContent = 'Users Directory';
       content.innerHTML = renderUsers();
-      break;
-    case 'auth-settings':
-      if (title) title.textContent = 'Authentication & Security Feature Flags';
-      content.innerHTML = renderAuthSettings();
       break;
     default:
       content.innerHTML = renderOverview();
@@ -1568,8 +1439,879 @@ function renderCurrentTab() {
   bindCurrentTabEvents();
 }
 
+function bindCurrentTabEvents() {
+  // Overview Quick Actions
+  document.getElementById('btn-quick-schedule-tourn')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="tournaments"]')?.click();
+  });
+  document.getElementById('btn-quick-add-apk')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="downloads"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-banners')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="banners"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-popup')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="urls"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-update')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="urls"]')?.click();
+  });
+  document.getElementById('btn-quick-view-players')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="users"]')?.click();
+  });
+
+  // Tournaments: Mode Pills
+  document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const hiddenMode = document.getElementById('new-t-mode');
+      if (hiddenMode) hiddenMode.value = pill.dataset.mode;
+    });
+  });
+
+  // Tournaments: Entry Type
+  const entryTypeSel = document.getElementById('new-t-entry-type');
+  const entryValInput = document.getElementById('new-t-entry-val');
+  entryTypeSel?.addEventListener('change', () => {
+    if (entryTypeSel.value === 'Free') {
+      entryValInput.value = 'Free';
+      entryValInput.disabled = true;
+    } else {
+      entryValInput.value = '৳ 50';
+      entryValInput.disabled = false;
+    }
+  });
+
+  // Tournaments: Add Tournament
+  document.getElementById('form-add-tournament')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('new-t-title').value;
+    const mode = document.getElementById('new-t-mode').value;
+    const map = document.getElementById('new-t-map').value;
+    const datetime = document.getElementById('new-t-datetime').value;
+    const entryType = document.getElementById('new-t-entry-type').value;
+    const entryVal = document.getElementById('new-t-entry-val').value;
+    const prizeCurrency = document.getElementById('new-t-prize-currency').value;
+    const prizePool = document.getElementById('new-t-prize-pool').value;
+    const maxSlots = parseInt(document.getElementById('new-t-slots').value) || 48;
+    const bannerUrl = document.getElementById('new-t-banner').value || 'assets/images/banner_esports.jpg';
+
+    const newTourn = {
+      id: 'tourn-' + Date.now(),
+      title,
+      mode,
+      gameMode: mode,
+      entryType: mode,
+      map,
+      startDateTime: datetime,
+      matchTime: datetime ? new Date(datetime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tonight at 08:30 PM',
+      entryFee: entryType === 'Free' ? 'Free' : entryVal,
+      prizePool: prizeCurrency + ' ' + prizePool,
+      prizeCurrency,
+      slotsTotal: maxSlots,
+      maxSlots: maxSlots,
+      slotsFilled: 0,
+      participants: [],
+      status: 'Upcoming',
+      isLive: false,
+      banner: bannerUrl,
+      bannerUrl: bannerUrl,
+      roomId: '',
+      roomPass: '',
+      isRoomReleased: false,
+      roomCredentials: { roomId: '', password: '', isReleased: false }
+    };
+
+    state.tournaments.unshift(newTourn);
+    setStorage('mobinx_tournaments_data', state.tournaments);
+    showToast('Tournament published live!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('tournaments', newTourn.id, newTourn);
+    broadcastSync('TOURNAMENTS_UPDATED', newTourn);
+  });
+
+  // Tournaments: Release Room ID & Password
+  document.querySelectorAll('.btn-release-room').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (!t) return;
+
+      const inputId = document.getElementById(`room-id-${id}`);
+      const inputPass = document.getElementById(`room-pass-${id}`);
+
+      let roomId = inputId ? inputId.value.trim() : '';
+      let roomPass = inputPass ? inputPass.value.trim() : '';
+
+      if (!roomId) {
+        roomId = prompt('Enter Custom Room ID:', t.roomId || '') || '';
+      }
+      if (!roomPass) {
+        roomPass = prompt('Enter Custom Room Password:', t.roomPass || '') || '';
+      }
+
+      if (!roomId.trim()) {
+        showToast('Please enter a valid Room ID!', 'warning');
+        return;
+      }
+
+      t.roomId = roomId.trim();
+      t.roomPass = roomPass.trim();
+      t.isRoomReleased = true;
+      t.status = 'LIVE';
+      t.isLive = true;
+      t.roomCredentials = {
+        roomId: t.roomId,
+        password: t.roomPass,
+        isReleased: true,
+        releasedAt: Date.now()
+      };
+
+      setStorage('mobinx_tournaments_data', state.tournaments);
+      showToast('Room credentials released instantly to all players!', 'success');
+      renderCurrentTab();
+
+      await syncToFirestore('tournaments', t.id, t);
+      broadcastSync('ROOM_RELEASED', { id: t.id, title: t.title, ...t.roomCredentials });
+    });
+  });
+
+  // Tournaments: Edit Tournament Modal
+  document.querySelectorAll('.btn-edit-tourn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (!t) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Match Title *</label>
+            <input type="text" id="edit-t-title" class="form-control" value="${t.title || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Game Mode</label>
+            <input type="text" id="edit-t-mode" class="form-control" value="${t.gameMode || t.mode || 'Squad (4v4)'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Map</label>
+            <input type="text" id="edit-t-map" class="form-control" value="${t.map || 'Bermuda'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prize Pool</label>
+            <input type="text" id="edit-t-prize" class="form-control" value="${t.prizePool || '৳ 1500'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Entry Fee</label>
+            <input type="text" id="edit-t-fee" class="form-control" value="${t.entryFee || 'Free'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Total Slots</label>
+            <input type="number" id="edit-t-slots" class="form-control" value="${t.slotsTotal || t.maxSlots || 48}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select id="edit-t-status" class="form-control">
+              <option value="Upcoming" ${t.status === 'Upcoming' ? 'selected' : ''}>Upcoming</option>
+              <option value="LIVE" ${t.status === 'LIVE' || t.status === 'Live' ? 'selected' : ''}>LIVE</option>
+              <option value="Completed" ${t.status === 'Completed' ? 'selected' : ''}>Completed</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Banner URL</label>
+            <input type="text" id="edit-t-banner" class="form-control" value="${t.banner || t.bannerUrl || 'assets/images/banner_esports.jpg'}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('✏️ Edit Tournament', modalHtml, async () => {
+        t.title = document.getElementById('edit-t-title').value.trim() || t.title;
+        t.gameMode = document.getElementById('edit-t-mode').value.trim() || t.gameMode;
+        t.mode = t.gameMode;
+        t.map = document.getElementById('edit-t-map').value.trim() || t.map;
+        t.prizePool = document.getElementById('edit-t-prize').value.trim() || t.prizePool;
+        t.entryFee = document.getElementById('edit-t-fee').value.trim() || t.entryFee;
+        t.slotsTotal = parseInt(document.getElementById('edit-t-slots').value) || t.slotsTotal;
+        t.maxSlots = t.slotsTotal;
+        t.status = document.getElementById('edit-t-status').value;
+        t.isLive = t.status === 'LIVE';
+        t.banner = document.getElementById('edit-t-banner').value.trim() || t.banner;
+        t.bannerUrl = t.banner;
+
+        setStorage('mobinx_tournaments_data', state.tournaments);
+        showToast('Tournament updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('tournaments', t.id, t);
+        broadcastSync('TOURNAMENTS_UPDATED', t);
+      });
+    });
+  });
+
+  // Tournaments: Delete Tournament
+  document.querySelectorAll('.btn-delete-tourn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const confirmCancel = confirm('Are you sure you want to delete this tournament?');
+      if (!confirmCancel) return;
+
+      state.tournaments = state.tournaments.filter(t => t.id !== id);
+      setStorage('mobinx_tournaments_data', state.tournaments);
+      showToast('Tournament deleted.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('tournaments', id);
+      broadcastSync('TOURNAMENTS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Downloads: Add Button Row
+  document.getElementById('btn-add-action-row')?.addEventListener('click', () => {
+    const container = document.getElementById('action-buttons-repeater-container');
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'action-btn-row';
+    row.style.cssText = 'display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px;';
+    row.innerHTML = `
+      <input type="text" class="form-control act-label-input" placeholder="Button Name" required />
+      <input type="url" class="form-control act-url-input" placeholder="Download Target Link (https://...)" required />
+      <button type="button" class="btn btn-danger btn-remove-act-row" style="padding: 6px 10px;">✕</button>
+    `;
+    container.appendChild(row);
+    row.querySelector('.btn-remove-act-row')?.addEventListener('click', () => row.remove());
+  });
+
+  document.querySelectorAll('.btn-remove-act-row').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.target.closest('.action-btn-row')?.remove();
+    });
+  });
+
+  // Downloads: Add Download
+  document.getElementById('form-add-download')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('new-dl-title').value.trim();
+    const category = document.getElementById('new-dl-category').value;
+    const ytUrl = document.getElementById('new-dl-yt').value.trim();
+    const isPinned = document.getElementById('new-dl-pinned').checked;
+
+    let ytId = ytUrl;
+    if (ytId.includes('youtube.com/watch?v=')) {
+      ytId = ytId.split('watch?v=')[1].split('&')[0];
+    } else if (ytId.includes('youtu.be/')) {
+      ytId = ytId.split('youtu.be/')[1].split('?')[0];
+    }
+
+    const actionButtons = [];
+    document.querySelectorAll('#action-buttons-repeater-container .action-btn-row').forEach((row, idx) => {
+      const label = row.querySelector('.act-label-input')?.value.trim();
+      const url = row.querySelector('.act-url-input')?.value.trim();
+      if (label && url) {
+        actionButtons.push({ id: 'act-' + (idx + 1) + '-' + Date.now(), label, url, icon: 'download' });
+      }
+    });
+
+    const newDl = {
+      id: 'dl-' + Date.now(),
+      title,
+      category,
+      youtubeId: ytId || 'dQw4w9WgXcQ',
+      videoThumbnail: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`,
+      videoDuration: '05:00',
+      isPinned,
+      actionButtons
+    };
+
+    state.downloads.unshift(newDl);
+    setStorage('mobinx_downloads_catalog', state.downloads);
+    showToast('APK Download published to catalog!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('downloads', newDl.id, newDl);
+    broadcastSync('DOWNLOADS_UPDATED', newDl);
+  });
+
+  // Downloads: Edit Download
+  document.querySelectorAll('.btn-edit-download').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const dl = state.downloads.find(x => x.id === id);
+      if (!dl) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Title *</label>
+            <input type="text" id="edit-dl-title" class="form-control" value="${dl.title || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select id="edit-dl-category" class="form-control">
+              <option value="Mobin APK" ${dl.category === 'Mobin APK' ? 'selected' : ''}>Mobin APK</option>
+              <option value="Tools" ${dl.category === 'Tools' ? 'selected' : ''}>Tools</option>
+              <option value="Premium Apps" ${dl.category === 'Premium Apps' ? 'selected' : ''}>Premium Apps</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">YouTube Video ID / URL</label>
+            <input type="text" id="edit-dl-yt" class="form-control" value="${dl.youtubeId || ''}" required />
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Action Buttons (comma separated Label:URL)</label>
+            <textarea id="edit-dl-buttons" class="form-control" rows="3" placeholder="Button Name:https://...">${(dl.actionButtons || []).map(b => `${b.label}:${b.url}`).join('\n')}</textarea>
+          </div>
+        </div>
+      `;
+
+      openAdminModal('✏️ Edit Download Package', modalHtml, async () => {
+        dl.title = document.getElementById('edit-dl-title').value.trim() || dl.title;
+        dl.category = document.getElementById('edit-dl-category').value;
+        let ytVal = document.getElementById('edit-dl-yt').value.trim();
+        if (ytVal.includes('watch?v=')) ytVal = ytVal.split('watch?v=')[1].split('&')[0];
+        else if (ytVal.includes('youtu.be/')) ytVal = ytVal.split('youtu.be/')[1].split('?')[0];
+        dl.youtubeId = ytVal;
+        dl.videoThumbnail = `https://img.youtube.com/vi/${ytVal}/mqdefault.jpg`;
+
+        const btnLines = document.getElementById('edit-dl-buttons').value.split('\n');
+        const parsedBtns = [];
+        btnLines.forEach((line, idx) => {
+          const parts = line.split(':');
+          if (parts.length >= 2) {
+            const label = parts[0].trim();
+            const url = parts.slice(1).join(':').trim();
+            if (label && url) {
+              parsedBtns.push({ id: 'act-' + (idx + 1) + '-' + Date.now(), label, url, icon: 'download' });
+            }
+          }
+        });
+        if (parsedBtns.length > 0) dl.actionButtons = parsedBtns;
+
+        setStorage('mobinx_downloads_catalog', state.downloads);
+        showToast('Download package updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('downloads', dl.id, dl);
+        broadcastSync('DOWNLOADS_UPDATED', dl);
+      });
+    });
+  });
+
+  // Downloads: Delete Download
+  document.querySelectorAll('.btn-delete-download').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      state.downloads = state.downloads.filter(d => d.id !== id);
+      setStorage('mobinx_downloads_catalog', state.downloads);
+      showToast('Download package removed.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('downloads', id);
+      broadcastSync('DOWNLOADS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Flash Deals: Add
+  document.getElementById('form-add-flash')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const diamonds = document.getElementById('new-f-diamonds').value.trim();
+    const price = document.getElementById('new-f-price').value.trim();
+    const badge = document.getElementById('new-f-badge').value.trim();
+    const bonus = document.getElementById('new-f-bonus').value.trim();
+
+    const newDeal = {
+      id: 'flash-' + Date.now(),
+      diamondAmount: diamonds,
+      price,
+      badge: badge || 'HOT',
+      bonus: bonus || '+50 Bonus',
+      inStock: true
+    };
+
+    state.flashDeals.push(newDeal);
+    setStorage('mobinx_flash_deals', state.flashDeals);
+    showToast('Flash diamond deal published!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('flashDeals', newDeal.id, newDeal);
+    broadcastSync('FLASH_DEALS_UPDATED', newDeal);
+  });
+
+  // Flash Deals: Edit
+  document.querySelectorAll('.btn-edit-deal').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const d = state.flashDeals.find(x => x.id === id);
+      if (!d) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Diamond Amount *</label>
+            <input type="text" id="edit-f-diamonds" class="form-control" value="${d.diamondAmount || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price (৳) *</label>
+            <input type="text" id="edit-f-price" class="form-control" value="${d.price || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Badge</label>
+            <input type="text" id="edit-f-badge" class="form-control" value="${d.badge || 'HOT'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bonus</label>
+            <input type="text" id="edit-f-bonus" class="form-control" value="${d.bonus || '+50 Bonus'}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('⚡ Edit Flash Diamond Deal', modalHtml, async () => {
+        d.diamondAmount = document.getElementById('edit-f-diamonds').value.trim() || d.diamondAmount;
+        d.price = document.getElementById('edit-f-price').value.trim() || d.price;
+        d.badge = document.getElementById('edit-f-badge').value.trim() || d.badge;
+        d.bonus = document.getElementById('edit-f-bonus').value.trim() || d.bonus;
+
+        setStorage('mobinx_flash_deals', state.flashDeals);
+        showToast('Flash deal updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('flashDeals', d.id, d);
+        broadcastSync('FLASH_DEALS_UPDATED', d);
+      });
+    });
+  });
+
+  // Flash Deals: Delete
+  document.querySelectorAll('.btn-delete-deal').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      state.flashDeals = state.flashDeals.filter(d => d.id !== id);
+      setStorage('mobinx_flash_deals', state.flashDeals);
+      showToast('Deal deleted.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('flashDeals', id);
+      broadcastSync('FLASH_DEALS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Banners: File Upload
+  const fileInput = document.getElementById('new-b-file-input');
+  const urlInput = document.getElementById('new-b-image');
+  const previewBox = document.getElementById('banner-preview-box');
+  const previewImg = document.getElementById('banner-preview-img');
+
+  fileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        const dataUrl = loadEvt.target.result;
+        if (urlInput) urlInput.value = dataUrl;
+        if (previewImg && previewBox) {
+          previewImg.src = dataUrl;
+          previewBox.style.display = 'block';
+        }
+        showToast('Image loaded from device! Ready to publish.', 'info');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Banners: Add
+  document.getElementById('form-add-banner')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('new-b-title').value.trim();
+    const image = document.getElementById('new-b-image').value.trim();
+    const url = document.getElementById('new-b-url').value.trim();
+    const badge = document.getElementById('new-b-badge')?.value.trim() || 'HOT DEAL';
+
+    const newBanner = {
+      id: 'banner-' + Date.now(),
+      title,
+      image,
+      actionUrl: url || '',
+      badge,
+      active: true
+    };
+
+    state.banners.push(newBanner);
+    setStorage('mobinx_hero_banners', state.banners);
+    showToast('Banner published to cloud and app!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('banners', newBanner.id, newBanner);
+    broadcastSync('BANNERS_UPDATED', newBanner);
+  });
+
+  // Banners: Edit
+  document.querySelectorAll('.btn-edit-banner').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const b = state.banners.find(x => x.id === id);
+      if (!b) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Banner Title *</label>
+            <input type="text" id="edit-b-title" class="form-control" value="${b.title || ''}" required />
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Banner Image URL *</label>
+            <input type="text" id="edit-b-image" class="form-control" value="${b.image || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Action Target Link</label>
+            <input type="url" id="edit-b-url" class="form-control" value="${b.actionUrl || ''}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Badge</label>
+            <input type="text" id="edit-b-badge" class="form-control" value="${b.badge || 'HOT'}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('🖼️ Edit Banner', modalHtml, async () => {
+        b.title = document.getElementById('edit-b-title').value.trim() || b.title;
+        b.image = document.getElementById('edit-b-image').value.trim() || b.image;
+        b.actionUrl = document.getElementById('edit-b-url').value.trim() || b.actionUrl;
+        b.badge = document.getElementById('edit-b-badge').value.trim() || b.badge;
+
+        setStorage('mobinx_hero_banners', state.banners);
+        showToast('Banner updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('banners', b.id, b);
+        broadcastSync('BANNERS_UPDATED', b);
+      });
+    });
+  });
+
+  // Banners: Delete
+  document.querySelectorAll('.btn-delete-banner').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const id = btn.getAttribute('data-id');
+      if (!id) return;
+      state.banners = state.banners.filter(b => String(b.id) !== String(id));
+      setStorage('mobinx_hero_banners', state.banners);
+      showToast('Banner removed.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('banners', id);
+      broadcastSync('BANNERS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Home Notice Popup: Live Preview Listeners
+  const popupFileInput = document.getElementById('admin-popup-file-input');
+  const popupImgInput = document.getElementById('admin-popup-image');
+  const mockupImgContainer = document.getElementById('mockup-img-container');
+  const mockupPopupImg = document.getElementById('mockup-popup-img');
+  const mockupPopupText = document.getElementById('mockup-popup-text');
+  const mockupPopupBtn = document.getElementById('mockup-popup-btn');
+  const popupDescInput = document.getElementById('admin-popup-desc');
+  const popupBtnTextInput = document.getElementById('admin-popup-btn-text');
+  const popupEnabledCheckbox = document.getElementById('admin-popup-enabled');
+  const popupStatusLabel = document.getElementById('admin-popup-status-label');
+
+  popupEnabledCheckbox?.addEventListener('change', (e) => {
+    if (popupStatusLabel) {
+      if (e.target.checked) {
+        popupStatusLabel.textContent = '● ACTIVE IN APP';
+        popupStatusLabel.style.color = '#10b981';
+      } else {
+        popupStatusLabel.textContent = '○ DISABLED';
+        popupStatusLabel.style.color = 'var(--text-muted)';
+      }
+    }
+  });
+
+  popupDescInput?.addEventListener('input', (e) => {
+    if (mockupPopupText) {
+      mockupPopupText.textContent = e.target.value || 'Notice description text';
+    }
+  });
+
+  popupBtnTextInput?.addEventListener('input', (e) => {
+    if (mockupPopupBtn) {
+      mockupPopupBtn.textContent = e.target.value || 'ক্লিক করুন';
+    }
+  });
+
+  popupImgInput?.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    if (mockupPopupImg && mockupImgContainer) {
+      if (val) {
+        mockupPopupImg.src = val;
+        mockupImgContainer.style.display = 'block';
+      } else {
+        mockupImgContainer.style.display = 'none';
+      }
+    }
+  });
+
+  popupFileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      showToast('Processing image...', 'info');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target.result;
+        if (popupImgInput) popupImgInput.value = dataUrl;
+        if (mockupPopupImg && mockupImgContainer) {
+          mockupPopupImg.src = dataUrl;
+          mockupImgContainer.style.display = 'block';
+        }
+        showToast('Image loaded into mobile preview!', 'success');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Home Notice Popup: Save
+  document.getElementById('form-save-home-popup')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const enabled = document.getElementById('admin-popup-enabled')?.checked ?? false;
+    const image = document.getElementById('admin-popup-image')?.value.trim() || '';
+    const description = document.getElementById('admin-popup-desc')?.value.trim() || '';
+    const buttonText = document.getElementById('admin-popup-btn-text')?.value.trim() || 'ক্লিক করুন';
+    const buttonUrl = document.getElementById('admin-popup-btn-url')?.value.trim() || 'https://t.me/mrmobin1m';
+    const showOncePerSession = document.getElementById('admin-popup-once')?.checked ?? true;
+
+    state.homePopup = {
+      enabled,
+      image,
+      description,
+      title: description,
+      buttonText,
+      buttonUrl,
+      showOncePerSession
+    };
+
+    setStorage('mobinx_home_popup', state.homePopup);
+    showToast(enabled ? '🎉 Home Notice Popup enabled & deployed!' : 'Home Notice Popup saved (Disabled).', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'home_popup', state.homePopup);
+    await syncToFirestore('config', 'notices', { welcomePopup: state.homePopup });
+    broadcastSync('HOME_POPUP_UPDATED', state.homePopup);
+  });
+
+  // App Update: Save
+  document.getElementById('admin-update-enabled')?.addEventListener('change', function() {
+    const lbl = document.getElementById('admin-update-status-label');
+    if (lbl) {
+      lbl.textContent = this.checked ? '● ACTIVE IN APP' : '○ DISABLED';
+      lbl.style.color = this.checked ? '#10b981' : 'var(--text-muted)';
+    }
+  });
+
+  document.getElementById('form-save-update-config')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const enabled = document.getElementById('admin-update-enabled')?.checked ?? false;
+    const latestVersion = document.getElementById('admin-update-version')?.value.trim() || '1.1';
+    const forceUpdate = document.getElementById('admin-update-force')?.checked ?? false;
+    const updateTitle = document.getElementById('admin-update-title')?.value.trim() || 'নতুন আপডেট উপলব্ধ! 🚀';
+    const updateMessage = document.getElementById('admin-update-msg')?.value.trim() || 'অ্যাপের নতুন ফিচারের জন্য গুগল প্লে স্টোর থেকে এখনই আপডেট করে নিন।';
+    const updateUrl = document.getElementById('admin-update-url')?.value.trim() || 'https://play.google.com/store/apps/details?id=com.mobinx.gaming';
+
+    state.appUpdate = {
+      enabled,
+      latestVersion,
+      currentVersion: '1.0',
+      forceUpdate,
+      updateTitle,
+      updateMessage,
+      updateUrl
+    };
+
+    setStorage('mobinx_app_update', state.appUpdate);
+    showToast(enabled ? '🚀 Play Store Update Alert saved & deployed live!' : 'Update Alert saved (Disabled).', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'app_update', state.appUpdate);
+    broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
+  });
+
+  // Push Broadcast
+  document.getElementById('form-broadcast-push')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('push-msg-input').value.trim();
+    state.notices.pushNotification = {
+      message: msg,
+      timestamp: Date.now()
+    };
+
+    setStorage('mobinx_notices_config', state.notices);
+    showToast('📢 Push notification dispatched to all apps!', 'success');
+    document.getElementById('push-msg-input').value = '';
+
+    await syncToFirestore('config', 'notices', state.notices);
+    broadcastSync('PUSH_BROADCAST', state.notices.pushNotification);
+  });
+
+  // Users: Export Buttons
+  document.getElementById('btn-export-users-csv')?.addEventListener('click', exportUsersCSV);
+  document.getElementById('btn-export-users-marketing')?.addEventListener('click', exportUsersMarketingList);
+  document.getElementById('btn-export-users-json')?.addEventListener('click', exportUsersJSON);
+
+  // Users: Search Filter
+  document.getElementById('input-search-players')?.addEventListener('input', (e) => {
+    state.userSearchQuery = e.target.value;
+    renderCurrentTab();
+  });
+
+  // Users: Refresh Cloud
+  document.getElementById('btn-refresh-users')?.addEventListener('click', async () => {
+    showToast('Syncing fresh from Cloud Firestore...', 'info');
+    if (db) {
+      try {
+        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const snap = await getDocs(collection(db, 'users'));
+        const usersList = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          const email = (d.email || '').toLowerCase().trim();
+          if (!legacyDummyEmails.includes(email)) {
+            usersList.push({ ...d, id: docSnap.id });
+          }
+        });
+
+        usersList.sort((a, b) => {
+          const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
+          const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
+          if (timeA !== timeB) return timeA - timeB;
+          if (a.isAdmin && !b.isAdmin) return -1;
+          if (!a.isAdmin && b.isAdmin) return 1;
+          return (a.userId || 999) - (b.userId || 999);
+        });
+
+        usersList.forEach((u, i) => {
+          u.userId = i + 1;
+          u.playerNumber = i + 1;
+        });
+
+        usersList.sort((a, b) => (b.userId || 0) - (a.userId || 0));
+
+        state.users = usersList;
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Synced ${usersList.length} verified players from Cloud!`, 'success');
+        renderCurrentTab();
+      } catch (err) {
+        showToast('Cloud sync notice: ' + err.message, 'warning');
+      }
+    }
+  });
+
+  // Users: Copy Field
+  document.querySelectorAll('.btn-copy-field').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const val = btn.dataset.copy;
+      const label = btn.dataset.label || 'Value';
+      if (val && navigator.clipboard) {
+        navigator.clipboard.writeText(val).then(() => {
+          showToast(`Copied ${label}: ${val}`, 'success');
+        }).catch(() => {
+          copyFallback(val, label);
+        });
+      } else if (val) {
+        copyFallback(val, label);
+      }
+    });
+  });
+
+  function copyFallback(text, label) {
+    const temp = document.createElement('input');
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+    showToast(`Copied ${label}: ${text}`, 'success');
+  }
+
+  // Users: Edit Player
+  document.querySelectorAll('.btn-edit-player').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const u = state.users.find(x => x.id === btn.dataset.id);
+      if (!u) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Player Name / In-Game Name *</label>
+            <input type="text" id="edit-u-name" class="form-control" value="${u.fullName || u.username || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone Number</label>
+            <input type="tel" id="edit-u-phone" class="form-control" value="${u.phone || ''}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Free Fire UID</label>
+            <input type="text" id="edit-u-uid" class="form-control" value="${u.ffUid || ''}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('✏️ Edit Player Profile', modalHtml, async () => {
+        u.fullName = document.getElementById('edit-u-name').value.trim() || u.fullName;
+        u.username = u.fullName;
+        u.phone = document.getElementById('edit-u-phone').value.trim();
+        u.phoneNumber = u.phone;
+        u.ffUid = document.getElementById('edit-u-uid').value.trim();
+
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Player ${u.fullName} updated!`, 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('users', u.id, u);
+      });
+    });
+  });
+
+  // Users: Toggle Suspend
+  document.querySelectorAll('.btn-toggle-user-status').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const u = state.users.find(x => x.id === btn.dataset.id);
+      if (u) {
+        u.status = u.status === 'Suspended' ? 'Active' : 'Suspended';
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Player status set to ${u.status}!`, 'info');
+        renderCurrentTab();
+
+        await syncToFirestore('users', u.id, u);
+      }
+    });
+  });
+
+  // Users: Delete Player
+  document.querySelectorAll('.btn-delete-user').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const confirmDel = confirm('Are you sure you want to delete this player account?');
+      if (!confirmDel) return;
+
+      state.users = state.users.filter(u => u.id !== id);
+      setStorage('mobinx_registered_users', state.users);
+      showToast('Player removed.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('users', id);
+    });
+  });
+}
+
 // ==========================================
-// THEME SYSTEM (Dark & Light Mode Switcher)
+// 9. THEME CONTROLLER & NAVIGATION
 // ==========================================
 function initTheme() {
   const savedTheme = localStorage.getItem('mobinx_admin_theme') || document.documentElement.getAttribute('data-theme') || 'dark';
@@ -1601,6 +2343,18 @@ function toggleTheme() {
 
 function bindNavigation() {
   document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleTheme);
+
+  // Modal event listeners
+  document.getElementById('admin-modal-close-btn')?.addEventListener('click', closeAdminModal);
+  document.getElementById('admin-modal-cancel-btn')?.addEventListener('click', closeAdminModal);
+  document.getElementById('admin-modal-save-btn')?.addEventListener('click', () => {
+    if (typeof state.modalCallback === 'function') {
+      state.modalCallback();
+    }
+  });
+  document.getElementById('admin-modal-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'admin-modal-overlay') closeAdminModal();
+  });
 
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -1634,704 +2388,24 @@ function bindNavigation() {
   });
 }
 
-function bindCurrentTabEvents() {
-  // Overview Quick Actions
-  document.getElementById('btn-quick-schedule-tourn')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-tab="tournaments"]')?.click();
-  });
-  document.getElementById('btn-quick-add-apk')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-tab="downloads"]')?.click();
-  });
-  document.getElementById('btn-quick-manage-banners')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-tab="banners"]')?.click();
-  });
-  document.getElementById('btn-quick-manage-popup')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-tab="urls"]')?.click();
-  });
-  document.getElementById('btn-quick-manage-update')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-tab="urls"]')?.click();
-  });
-  document.getElementById('btn-quick-view-players')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-tab="users"]')?.click();
-  });
-
-  // Tournaments: Game Mode Selection Pills
-  document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      const hiddenMode = document.getElementById('new-t-mode');
-      if (hiddenMode) hiddenMode.value = pill.dataset.mode;
-    });
-  });
-
-  // Tournaments: Entry Type Switcher
-  const entryTypeSel = document.getElementById('new-t-entry-type');
-  const entryValInput = document.getElementById('new-t-entry-val');
-  entryTypeSel?.addEventListener('change', () => {
-    if (entryTypeSel.value === 'Free') {
-      entryValInput.value = 'Free';
-      entryValInput.disabled = true;
-    } else {
-      entryValInput.value = '৳ 50';
-      entryValInput.disabled = false;
-    }
-  });
-
-  // Tournaments: Add Tournament
-  document.getElementById('form-add-tournament')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('new-t-title').value;
-    const mode = document.getElementById('new-t-mode').value;
-    const map = document.getElementById('new-t-map').value;
-    const datetime = document.getElementById('new-t-datetime').value;
-    const entryType = document.getElementById('new-t-entry-type').value;
-    const entryVal = document.getElementById('new-t-entry-val').value;
-    const prizeCurrency = document.getElementById('new-t-prize-currency').value;
-    const prizePool = document.getElementById('new-t-prize-pool').value;
-    const maxSlots = parseInt(document.getElementById('new-t-slots').value) || 48;
-    const bannerUrl = document.getElementById('new-t-banner').value;
-
-    const newTourn = {
-      id: 'tourn-' + Date.now(),
-      title,
-      mode,
-      map,
-      startDateTime: datetime,
-      entryFee: entryType === 'Free' ? 'Free' : entryVal,
-      prizePool: prizeCurrency + ' ' + prizePool,
-      prizeCurrency,
-      maxSlots,
-      slotsFilled: 0,
-      participants: [],
-      status: 'Upcoming',
-      isLive: false,
-      bannerUrl: bannerUrl || 'assets/images/banner_esports.jpg',
-      roomCredentials: { roomId: '', password: '', isReleased: false }
-    };
-
-    state.tournaments.unshift(newTourn);
-    setStorage('mobinx_tournaments_data', state.tournaments);
-    await syncToFirestore('tournaments', newTourn.id, newTourn);
-    broadcastSync('TOURNAMENTS_UPDATED', newTourn);
-
-    showToast('Tournament published live!', 'success');
-    renderCurrentTab();
-  });
-
-  // Tournaments: Release Room ID
-  document.querySelectorAll('.btn-release-room').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const t = state.tournaments.find(x => x.id === id);
-      if (t) {
-        const roomId = prompt('Enter Custom Room ID:', t.roomCredentials?.roomId || '');
-        if (roomId === null) return;
-        const roomPass = prompt('Enter Custom Room Password:', t.roomCredentials?.password || '');
-        if (roomPass === null) return;
-
-        t.roomCredentials = {
-          roomId: roomId.trim(),
-          password: roomPass.trim(),
-          isReleased: true,
-          releasedAt: Date.now()
-        };
-
-        setStorage('mobinx_tournaments_data', state.tournaments);
-        await syncToFirestore('tournaments', t.id, t);
-        broadcastSync('ROOM_RELEASED', { id: t.id, title: t.title, ...t.roomCredentials });
-
-        showToast('Room credentials released instantly to all players!', 'success');
-        renderCurrentTab();
-      }
-    });
-  });
-
-  // Tournaments: Cancel/Delete
-  document.querySelectorAll('.btn-cancel-tournament').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const confirmCancel = confirm('Are you sure you want to cancel and delete this tournament?');
-      if (!confirmCancel) return;
-
-      state.tournaments = state.tournaments.filter(t => t.id !== id);
-      setStorage('mobinx_tournaments_data', state.tournaments);
-      await deleteFromFirestore('tournaments', id);
-      broadcastSync('TOURNAMENTS_UPDATED', { deletedId: id });
-
-      showToast('Tournament cancelled and removed from cloud.', 'warning');
-      renderCurrentTab();
-    });
-  });
-
-  // Downloads: Add Button
-  document.getElementById('btn-add-action-button')?.addEventListener('click', () => {
-    const container = document.getElementById('action-buttons-container');
-    if (!container) return;
-    const rowId = 'btn-row-' + Date.now();
-    const div = document.createElement('div');
-    div.className = 'form-grid';
-    div.id = rowId;
-    div.style.alignItems = 'center';
-    div.style.marginBottom = '8px';
-    div.innerHTML = `
-      <div><input type="text" class="form-control act-label" placeholder="Button Label (e.g. Proxy APK Download)" required /></div>
-      <div><input type="url" class="form-control act-url" placeholder="https://..." required /></div>
-      <div style="display: flex; gap: 8px;">
-        <select class="form-control act-icon" style="width: 120px;">
-          <option value="download">📥 Download</option>
-          <option value="key">🔑 Key / Tool</option>
-          <option value="file">📁 File</option>
-          <option value="link">🔗 Link</option>
-        </select>
-        <button type="button" class="btn btn-danger btn-remove-row" data-row="${rowId}">🗑️</button>
-      </div>
-    `;
-    container.appendChild(div);
-
-    div.querySelector('.btn-remove-row')?.addEventListener('click', () => {
-      div.remove();
-    });
-  });
-
-  // Downloads: Add Download Form
-  document.getElementById('form-add-download')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('new-d-title').value;
-    const ytUrl = document.getElementById('new-d-yt').value;
-    const isPinned = document.getElementById('new-d-pinned').checked;
-
-    let ytId = ytUrl.trim();
-    if (ytId.includes('youtube.com/watch?v=')) {
-      ytId = ytId.split('watch?v=')[1].split('&')[0];
-    } else if (ytId.includes('youtu.be/')) {
-      ytId = ytId.split('youtu.be/')[1].split('?')[0];
-    }
-
-    const actionButtons = [];
-    document.querySelectorAll('#action-buttons-container .form-grid').forEach((row, idx) => {
-      const label = row.querySelector('.act-label')?.value;
-      const url = row.querySelector('.act-url')?.value;
-      const icon = row.querySelector('.act-icon')?.value || 'download';
-      if (label && url) {
-        actionButtons.push({ id: 'act-' + (idx + 1) + '-' + Date.now(), label, url, icon });
-      }
-    });
-
-    const newDl = {
-      id: 'dl-' + Date.now(),
-      title,
-      category: 'Mobin APK',
-      youtubeId: ytId || 'dQw4w9WgXcQ',
-      videoThumbnail: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`,
-      videoDuration: '05:00',
-      isPinned,
-      actionButtons
-    };
-
-    state.downloads.unshift(newDl);
-    setStorage('mobinx_downloads_catalog', state.downloads);
-    await syncToFirestore('downloads', newDl.id, newDl);
-    broadcastSync('DOWNLOADS_UPDATED', newDl);
-
-    showToast('APK Download added to catalog!', 'success');
-    renderCurrentTab();
-  });
-
-  // Downloads: Delete
-  document.querySelectorAll('.btn-delete-download').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      state.downloads = state.downloads.filter(d => d.id !== id);
-      setStorage('mobinx_downloads_catalog', state.downloads);
-      await deleteFromFirestore('downloads', id);
-      broadcastSync('DOWNLOADS_UPDATED', { deletedId: id });
-      showToast('Download package removed.', 'warning');
-      renderCurrentTab();
-    });
-  });
-
-  // Flash Deals: Add
-  document.getElementById('form-add-flash')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const diamonds = document.getElementById('new-f-diamonds').value;
-    const price = document.getElementById('new-f-price').value;
-    const badge = document.getElementById('new-f-badge').value;
-    const bonus = document.getElementById('new-f-bonus').value;
-
-    const newDeal = {
-      id: 'flash-' + Date.now(),
-      diamondAmount: diamonds,
-      price,
-      badge: badge || 'HOT',
-      bonus: bonus || '+50 Bonus',
-      inStock: true
-    };
-
-    state.flashDeals.push(newDeal);
-    setStorage('mobinx_flash_deals', state.flashDeals);
-    await syncToFirestore('flashDeals', newDeal.id, newDeal);
-    broadcastSync('FLASH_DEALS_UPDATED', newDeal);
-
-    showToast('Flash diamond deal published!', 'success');
-    renderCurrentTab();
-  });
-
-  // Flash Deals: Delete
-  document.querySelectorAll('.btn-delete-deal').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      state.flashDeals = state.flashDeals.filter(d => d.id !== id);
-      setStorage('mobinx_flash_deals', state.flashDeals);
-      await deleteFromFirestore('flashDeals', id);
-      broadcastSync('FLASH_DEALS_UPDATED', { deletedId: id });
-      showToast('Deal deleted.', 'warning');
-      renderCurrentTab();
-    });
-  });
-
-  // Banners: File Upload from Device
-  const fileInput = document.getElementById('new-b-file-input');
-  const urlInput = document.getElementById('new-b-image');
-  const previewBox = document.getElementById('banner-preview-box');
-  const previewImg = document.getElementById('banner-preview-img');
-
-  fileInput?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (loadEvt) => {
-        const dataUrl = loadEvt.target.result;
-        if (urlInput) urlInput.value = dataUrl;
-        if (previewImg && previewBox) {
-          previewImg.src = dataUrl;
-          previewBox.style.display = 'block';
-        }
-        showToast('Image loaded from device! Ready to publish.', 'info');
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  // Banners: Add
-  document.getElementById('form-add-banner')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('new-b-title').value;
-    const image = document.getElementById('new-b-image').value;
-    const url = document.getElementById('new-b-url').value;
-
-    const newBanner = {
-      id: 'banner-' + Date.now(),
-      title,
-      image,
-      actionUrl: url || '',
-      badge: 'NEW',
-      active: true
-    };
-
-    state.banners.push(newBanner);
-    setStorage('mobinx_hero_banners', state.banners);
-    showToast('Banner published to cloud and app!', 'success');
-    renderCurrentTab();
-    syncToFirestore('banners', newBanner.id, newBanner).catch(err => console.warn(err));
-    broadcastSync('BANNERS_UPDATED', newBanner);
-  });
-
-  // Banners: Delete (Immediate Non-Blocking UI Update)
-  document.querySelectorAll('.btn-delete-banner').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const id = btn.getAttribute('data-id');
-      if (!id) return;
-      state.banners = state.banners.filter(b => String(b.id) !== String(id));
-      setStorage('mobinx_hero_banners', state.banners);
-      showToast('Banner removed from dashboard.', 'warning');
-      renderCurrentTab();
-      deleteFromFirestore('banners', id).catch(err => console.warn('Banner delete cloud note:', err.message));
-      broadcastSync('BANNERS_UPDATED', { deletedId: id });
-    });
-  });
-
-  // ==========================================
-  // HOME NOTICE POPUP & LIVE MOCKUP PREVIEW
-  // ==========================================
-  const popupFileInput = document.getElementById('admin-popup-file-input');
-  const popupImgInput = document.getElementById('admin-popup-image');
-  const mockupImgContainer = document.getElementById('mockup-img-container');
-  const mockupPopupImg = document.getElementById('mockup-popup-img');
-  const mockupPopupText = document.getElementById('mockup-popup-text');
-  const mockupPopupBtn = document.getElementById('mockup-popup-btn');
-  const popupDescInput = document.getElementById('admin-popup-desc');
-  const popupBtnTextInput = document.getElementById('admin-popup-btn-text');
-  const popupEnabledCheckbox = document.getElementById('admin-popup-enabled');
-  const popupStatusLabel = document.getElementById('admin-popup-status-label');
-
-  // Enabled toggle label
-  popupEnabledCheckbox?.addEventListener('change', (e) => {
-    if (popupStatusLabel) {
-      if (e.target.checked) {
-        popupStatusLabel.textContent = '● ACTIVE IN APP';
-        popupStatusLabel.style.color = '#10b981';
-      } else {
-        popupStatusLabel.textContent = '○ DISABLED';
-        popupStatusLabel.style.color = 'var(--text-muted)';
-      }
-    }
-  });
-
-  // Live Typing in Description -> Updates Mockup
-  popupDescInput?.addEventListener('input', (e) => {
-    if (mockupPopupText) {
-      mockupPopupText.textContent = e.target.value || 'Notice description text';
-    }
-  });
-
-  // Live Typing in Action Button Text -> Updates Mockup
-  popupBtnTextInput?.addEventListener('input', (e) => {
-    if (mockupPopupBtn) {
-      mockupPopupBtn.textContent = e.target.value || 'ক্লিক করুন';
-    }
-  });
-
-  // Live URL input -> Updates Mockup Image
-  popupImgInput?.addEventListener('input', (e) => {
-    const val = e.target.value.trim();
-    if (mockupPopupImg && mockupImgContainer) {
-      if (val) {
-        mockupPopupImg.src = val;
-        mockupImgContainer.style.display = 'block';
-      } else {
-        mockupImgContainer.style.display = 'none';
-      }
-    }
-  });
-
-  // File upload from device -> Updates Mockup Image
-  popupFileInput?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      showToast('Processing image...', 'info');
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target.result;
-        if (popupImgInput) popupImgInput.value = dataUrl;
-        if (mockupPopupImg && mockupImgContainer) {
-          mockupPopupImg.src = dataUrl;
-          mockupImgContainer.style.display = 'block';
-        }
-        showToast('Image loaded into mobile preview!', 'success');
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  // Save Home Notice Popup (Immediate UI Update)
-  document.getElementById('form-save-home-popup')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const enabled = document.getElementById('admin-popup-enabled')?.checked ?? false;
-    const image = document.getElementById('admin-popup-image')?.value.trim() || '';
-    const description = document.getElementById('admin-popup-desc')?.value.trim() || '';
-    const buttonText = document.getElementById('admin-popup-btn-text')?.value.trim() || 'ক্লিক করুন';
-    const buttonUrl = document.getElementById('admin-popup-btn-url')?.value.trim() || 'https://t.me/mrmobin1m';
-    const showOncePerSession = document.getElementById('admin-popup-once')?.checked ?? true;
-
-    state.homePopup = {
-      enabled,
-      image,
-      description,
-      title: description,
-      buttonText,
-      buttonUrl,
-      showOncePerSession
-    };
-
-    setStorage('mobinx_home_popup', state.homePopup);
-    showToast(enabled ? '🎉 Home Notice Popup enabled & deployed!' : 'Home Notice Popup saved (Disabled).', 'success');
-    renderCurrentTab();
-
-    // Background cloud sync
-    syncToFirestore('config', 'home_popup', state.homePopup).catch(err => console.warn(err));
-    syncToFirestore('config', 'notices', { welcomePopup: state.homePopup }).catch(err => console.warn(err));
-    broadcastSync('HOME_POPUP_UPDATED', state.homePopup);
-  });
-
-  // Toggle label on update checkbox change
-  document.getElementById('admin-update-enabled')?.addEventListener('change', function() {
-    const lbl = document.getElementById('admin-update-status-label');
-    if (lbl) {
-      lbl.textContent = this.checked ? '● ACTIVE IN APP' : '○ DISABLED';
-      lbl.style.color = this.checked ? '#10b981' : 'var(--text-muted)';
-    }
-  });
-
-  // Save Google Play Store Update Config (Immediate UI Update)
-  document.getElementById('form-save-update-config')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const enabled = document.getElementById('admin-update-enabled')?.checked ?? false;
-    const latestVersion = document.getElementById('admin-update-version')?.value.trim() || '1.1';
-    const forceUpdate = document.getElementById('admin-update-force')?.checked ?? false;
-    const updateTitle = document.getElementById('admin-update-title')?.value.trim() || 'নতুন আপডেট উপলব্ধ! 🚀';
-    const updateMessage = document.getElementById('admin-update-msg')?.value.trim() || 'অ্যাপের নতুন ফিচারের জন্য গুগল প্লে স্টোর থেকে এখনই আপডেট করে নিন।';
-    const updateUrl = document.getElementById('admin-update-url')?.value.trim() || 'https://play.google.com/store/apps/details?id=com.mobinx.gaming';
-
-    state.appUpdate = {
-      enabled,
-      latestVersion,
-      currentVersion: '1.0',
-      forceUpdate,
-      updateTitle,
-      updateMessage,
-      updateUrl
-    };
-
-    setStorage('mobinx_app_update', state.appUpdate);
-    showToast(enabled ? '🚀 Play Store Update Alert saved & deployed live!' : 'Update Alert saved (Disabled).', 'success');
-    renderCurrentTab();
-
-    syncToFirestore('config', 'app_update', state.appUpdate).catch(err => console.warn(err));
-    broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
-  });
-
-  // Notices: Broadcast Push Notification
-  document.getElementById('form-broadcast-push')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const msg = document.getElementById('push-msg-input').value;
-    state.notices.pushNotification = {
-      message: msg,
-      timestamp: Date.now()
-    };
-
-    setStorage('mobinx_notices_config', state.notices);
-    await syncToFirestore('config', 'notices', state.notices);
-    broadcastSync('PUSH_BROADCAST', state.notices.pushNotification);
-
-    showToast('📢 Push notification dispatched to all apps!', 'success');
-    document.getElementById('push-msg-input').value = '';
-  });
-
-  // ==========================================
-  // PLAYERS DIRECTORY & EXPORT ACTIONS
-  // ==========================================
-  // Export CSV for Google Sheets / Excel
-  document.getElementById('btn-export-users-csv')?.addEventListener('click', () => {
-    exportUsersCSV();
-  });
-
-  // Export Marketing Leads List
-  document.getElementById('btn-export-users-marketing')?.addEventListener('click', () => {
-    exportUsersMarketingList();
-  });
-
-  // Export JSON
-  document.getElementById('btn-export-users-json')?.addEventListener('click', () => {
-    exportUsersJSON();
-  });
-
-  // Search Filter
-  document.getElementById('input-search-players')?.addEventListener('input', (e) => {
-    state.userSearchQuery = e.target.value;
-    renderCurrentTab();
-  });
-
-  // Refresh from Cloud (Hard Cache Reset & Clean Sync)
-  document.getElementById('btn-refresh-users')?.addEventListener('click', async () => {
-    showToast('Clearing cache and syncing fresh from Cloud Firestore...', 'info');
-    localStorage.removeItem('mobinx_registered_users');
-    if (db) {
-      try {
-        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        const snap = await getDocs(collection(db, 'users'));
-        const usersList = [];
-        snap.forEach(docSnap => {
-          const d = docSnap.data();
-          const email = (d.email || '').toLowerCase().trim();
-          if (!legacyDummyEmails.includes(email)) {
-            usersList.push({ ...d, id: docSnap.id });
-          }
-        });
-
-        // 1. Sort chronologically (oldest registration first)
-        usersList.sort((a, b) => {
-          const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
-          const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
-          if (timeA !== timeB) return timeA - timeB;
-          if (a.isAdmin && !b.isAdmin) return -1;
-          if (!a.isAdmin && b.isAdmin) return 1;
-          return (a.userId || 999) - (b.userId || 999);
-        });
-
-        usersList.forEach((u, i) => {
-          u.userId = i + 1;
-          u.playerNumber = i + 1;
-        });
-
-        // 2. Sort reverse chronological (newest on top)
-        usersList.sort((a, b) => (b.userId || 0) - (a.userId || 0));
-
-        state.users = usersList;
-        setStorage('mobinx_registered_users', state.users);
-        showToast(`Synced ${usersList.length} verified players from Cloud Firestore!`, 'success');
-        renderCurrentTab();
-      } catch (err) {
-        showToast('Cloud sync note: ' + err.message, 'warning');
-      }
-    }
-  });
-
-  // Copy Field
-  document.querySelectorAll('.btn-copy-field').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const val = btn.dataset.copy;
-      const label = btn.dataset.label || 'Value';
-      if (val && navigator.clipboard) {
-        navigator.clipboard.writeText(val).then(() => {
-          showToast(`Copied ${label}: ${val}`, 'success');
-        }).catch(() => {
-          copyFallback(val, label);
-        });
-      } else if (val) {
-        copyFallback(val, label);
-      }
-    });
-  });
-
-  function copyFallback(text, label) {
-    const temp = document.createElement('input');
-    temp.value = text;
-    document.body.appendChild(temp);
-    temp.select();
-    document.execCommand('copy');
-    document.body.removeChild(temp);
-    showToast(`Copied ${label}: ${text}`, 'success');
-  }
-
-  // Edit Player
-  document.querySelectorAll('.btn-edit-player').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const u = state.users.find(x => x.id === btn.dataset.id);
-      if (u) {
-        const newName = prompt('Edit Player Name / IGN:', u.fullName || u.username);
-        const newPhone = prompt('Edit Phone number:', u.phone || '');
-        const newUid = prompt('Edit Free Fire UID:', u.ffUid || '');
-
-        if (newName !== null) u.fullName = newName;
-        if (newPhone !== null) u.phone = newPhone;
-        if (newUid !== null) u.ffUid = newUid;
-
-        setStorage('mobinx_registered_users', state.users);
-        await syncToFirestore('users', u.id, u);
-        showToast(`Player ${u.fullName} updated!`, 'success');
-        renderCurrentTab();
-      }
-    });
-  });
-
-  // Toggle Suspend/Activate
-  document.querySelectorAll('.btn-toggle-user-status').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const u = state.users.find(x => x.id === btn.dataset.id);
-      if (u) {
-        u.status = u.status === 'Suspended' ? 'Active' : 'Suspended';
-        setStorage('mobinx_registered_users', state.users);
-        await syncToFirestore('users', u.id, u);
-        showToast(`Player status set to ${u.status}!`, 'info');
-        renderCurrentTab();
-      }
-    });
-  });
-
-  // Delete Player
-  document.querySelectorAll('.btn-delete-user').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const confirmDel = confirm('Are you sure you want to delete this player account?');
-      if (!confirmDel) return;
-
-      state.users = state.users.filter(u => u.id !== id);
-      setStorage('mobinx_registered_users', state.users);
-      await deleteFromFirestore('users', id);
-      showToast('Player removed.', 'warning');
-      renderCurrentTab();
-    });
-  });
-
-  // ==========================================
-  // AUTHENTICATION & SECURITY FEATURE FLAGS
-  // ==========================================
-  const updateBadge = (id, checked, onText, offText) => {
-    const badge = document.getElementById(id);
-    if (badge) {
-      badge.textContent = checked ? onText : offText;
-      badge.style.background = checked ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)';
-      badge.style.color = checked ? '#34d399' : '#f87171';
-    }
-  };
-
-  document.getElementById('flag-google-signup')?.addEventListener('change', (e) => {
-    updateBadge('badge-google-signup', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
-  });
-  document.getElementById('flag-topup-access')?.addEventListener('change', (e) => {
-    updateBadge('badge-topup-access', e.target.checked, 'ON (ACTIVE)', 'OFF (HIDDEN)');
-  });
-
-  document.getElementById('form-auth-settings')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const googleSignUpEnabled = document.getElementById('flag-google-signup')?.checked ?? true;
-    const topUpEnabled = document.getElementById('flag-topup-access')?.checked ?? true;
-
-    state.authSettings = {
-      googleSignUpEnabled,
-      manualSignUpEnabled: false,
-      googleLoginEnabled: googleSignUpEnabled,
-      manualLoginEnabled: false,
-      topUpEnabled,
-      lastUpdated: new Date().toISOString()
-    };
-
-    setStorage('mobinx_auth_settings', state.authSettings);
-    await syncToFirestore('config', 'auth_settings', state.authSettings);
-    broadcastSync('AUTH_SETTINGS_UPDATED', state.authSettings);
-
-    showToast('🔐 Authentication Feature Flags deployed to Cloud Firestore!', 'success');
-  });
-}
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-
-  const toast = document.createElement('div');
-  toast.className = `admin-toast ${type}`;
-  toast.innerHTML = `
-    <span>${type === 'success' ? '✅' : (type === 'warning' ? '⚠️' : 'ℹ️')}</span>
-    <span>${message}</span>
-  `;
-
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(10px)';
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
-}
-
-// Robust Bootstrap
+// ==========================================
+// 10. BOOTSTRAP
+// ==========================================
 function startAdminApp() {
   try {
     initTheme();
     bindNavigation();
     renderCurrentTab();
-    initFirebase().catch(e => console.warn('Firebase init:', e));
+    initFirebase().catch(e => console.warn('Firebase init notice:', e));
   } catch (err) {
     console.error('Error starting admin app:', err);
   }
 }
 
-// Robust Bootstrap - Run immediately as DOM is parsed
 if (typeof window !== 'undefined') {
-  startAdminApp();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startAdminApp);
+  } else {
+    startAdminApp();
   }
 }
