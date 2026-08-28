@@ -2911,7 +2911,13 @@ function renderSystemUrls() {
         <div class="card-header">
           <div>
             <div class="card-title">🚀 Flash Push Notification Broadcaster</div>
-            <div class="card-subtitle">Sends an immediate live banner toast to all active players</div>
+            <div class="card-subtitle">Sends an immediate live banner toast and native Android notification to all active players</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="admin-push-enabled" style="width: 18px; height: 18px; cursor: pointer;" ${state.notices?.pushNotification?.active !== false ? 'checked' : ''} />
+            <label for="admin-push-enabled" id="admin-push-status-label" style="font-size: 12px; font-weight: 800; color: ${state.notices?.pushNotification?.active !== false ? '#10b981' : 'var(--text-muted)'}; cursor: pointer;">
+              ${state.notices?.pushNotification?.active !== false ? '● ACTIVE' : '○ INACTIVE'}
+            </label>
           </div>
         </div>
 
@@ -2919,17 +2925,23 @@ function renderSystemUrls() {
           <div class="form-grid" style="grid-template-columns: 1fr 2fr; gap: 10px;">
             <div class="form-group">
               <label class="form-label">Notification Title *</label>
-              <input type="text" id="push-title-input" class="form-control" placeholder="e.g. BR MATCH REFUND / ANNOUNCEMENT" value="MOBIN X GAMING" required />
+              <input type="text" id="push-title-input" class="form-control" placeholder="e.g. BR MATCH REFUND / ANNOUNCEMENT" value="${state.notices?.pushNotification?.title || 'MOBIN X GAMING'}" required />
             </div>
             <div class="form-group">
               <label class="form-label">Notification Message / Body *</label>
-              <input type="text" id="push-msg-input" class="form-control" placeholder="e.g. নেটওয়ার্ক সমস্যার জন্য 8:40/ 9:00 BR MATCH REFUND দেয়া হয়েছে" required />
+              <input type="text" id="push-msg-input" class="form-control" placeholder="e.g. নেটওয়ার্ক সমস্যার জন্য 8:40/ 9:00 BR MATCH REFUND দেয়া হয়েছে" value="${state.notices?.pushNotification?.message || ''}" required />
             </div>
           </div>
-          <button type="submit" class="btn btn-primary" style="margin-top: 12px; display: inline-flex; align-items: center; gap: 8px;">
-            <span>📢</span>
-            <span>Broadcast Android Native Notification Now</span>
-          </button>
+          <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+            <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
+              <span>📢</span>
+              <span>Broadcast Android Native Notification Now</span>
+            </button>
+            <button type="button" id="btn-clear-push-broadcast" class="btn btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">
+              <span>🛑</span>
+              <span>Clear / Deactivate Active Broadcast</span>
+            </button>
+          </div>
         </form>
       </div>
 
@@ -4106,6 +4118,11 @@ function bindCurrentTabEvents() {
 
     await syncToFirestore('config', 'home_popup', state.homePopup);
     await syncToFirestore('config', 'notices', { welcomePopup: state.homePopup });
+    await syncToFirestore('config', 'notices_and_updates', {
+      homePopup: state.homePopup,
+      appUpdate: state.appUpdate,
+      pushNotification: state.notices?.pushNotification || {}
+    });
     broadcastSync('HOME_POPUP_UPDATED', state.homePopup);
   });
 
@@ -4129,7 +4146,9 @@ function bindCurrentTabEvents() {
 
     state.appUpdate = {
       enabled,
+      active: enabled,
       latestVersion,
+      latestVersionTag: latestVersion,
       currentVersion: '1.0',
       forceUpdate,
       updateTitle,
@@ -4142,10 +4161,38 @@ function bindCurrentTabEvents() {
     renderCurrentTab();
 
     await syncToFirestore('config', 'app_update', state.appUpdate);
+    await syncToFirestore('config', 'notices_and_updates', {
+      homePopup: state.homePopup,
+      appUpdate: state.appUpdate,
+      pushNotification: state.notices?.pushNotification || {}
+    });
     broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
   });
 
-  // Push Broadcast
+  // Push Broadcast Toggle
+  document.getElementById('admin-push-enabled')?.addEventListener('change', async function() {
+    const lbl = document.getElementById('admin-push-status-label');
+    if (lbl) {
+      lbl.textContent = this.checked ? '● ACTIVE' : '○ INACTIVE';
+      lbl.style.color = this.checked ? '#10b981' : 'var(--text-muted)';
+    }
+    state.notices = state.notices || {};
+    state.notices.pushNotification = state.notices.pushNotification || {};
+    state.notices.pushNotification.active = this.checked;
+    setStorage('mobinx_notices_config', state.notices);
+
+    await syncToFirestore('config', 'notices', state.notices);
+    await syncToFirestore('config', 'flash_broadcast', state.notices.pushNotification);
+    await syncToFirestore('config', 'notices_and_updates', {
+      homePopup: state.homePopup,
+      appUpdate: state.appUpdate,
+      pushNotification: state.notices.pushNotification
+    });
+    broadcastSync('PUSH_NOTIFICATION_STATUS_CHANGED', state.notices.pushNotification);
+    showToast(this.checked ? 'Push broadcast is now ACTIVE' : 'Push broadcast is now INACTIVE', 'info');
+  });
+
+  // Push Broadcast Submit
   document.getElementById('form-broadcast-push')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const titleInput = document.getElementById('push-title-input')?.value?.trim();
@@ -4154,16 +4201,47 @@ function bindCurrentTabEvents() {
     
     state.notices = state.notices || {};
     state.notices.pushNotification = {
+      active: true,
       title: notifTitle,
       message: msg,
       timestamp: Date.now()
     };
 
     setStorage('mobinx_notices_config', state.notices);
-    showToast(`📢 Push notification "${notifTitle}" dispatched!`, 'success');
+    showToast(`📢 Push notification "${notifTitle}" dispatched live!`, 'success');
 
     await syncToFirestore('config', 'notices', state.notices);
+    await syncToFirestore('config', 'flash_broadcast', state.notices.pushNotification);
+    await syncToFirestore('config', 'notices_and_updates', {
+      homePopup: state.homePopup,
+      appUpdate: state.appUpdate,
+      pushNotification: state.notices.pushNotification
+    });
     broadcastSync('PUSH_NOTIFICATION_SENT', state.notices.pushNotification);
+  });
+
+  // Clear Push Broadcast
+  document.getElementById('btn-clear-push-broadcast')?.addEventListener('click', async () => {
+    state.notices = state.notices || {};
+    state.notices.pushNotification = {
+      active: false,
+      title: '',
+      message: '',
+      timestamp: Date.now()
+    };
+
+    setStorage('mobinx_notices_config', state.notices);
+    showToast('🛑 Active push broadcast cleared and deactivated!', 'warning');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'notices', state.notices);
+    await syncToFirestore('config', 'flash_broadcast', state.notices.pushNotification);
+    await syncToFirestore('config', 'notices_and_updates', {
+      homePopup: state.homePopup,
+      appUpdate: state.appUpdate,
+      pushNotification: state.notices.pushNotification
+    });
+    broadcastSync('PUSH_NOTIFICATION_CLEARED', state.notices.pushNotification);
   });
 
   // Users: Export Buttons
