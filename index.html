@@ -1979,7 +1979,7 @@ function renderOverview() {
   const downloadLogs = getStorage('mobinx_download_logs', []);
   const todayDownloadsCount = downloadLogs.filter(d => (now - (d.timestamp || now)) <= oneDayMs).length;
   const sevenDaysDownloadsCount = downloadLogs.filter(d => (now - (d.timestamp || now)) <= sevenDaysMs).length;
-  const totalDownloadsSum = Math.max(downloadLogs.length, 128) + (todayDownloadsCount * 3);
+  const totalDownloadsSum = downloadLogs.length;
   const totalDlCatalog = state.downloads.length;
 
   // 3. Tournaments & Esports Operations
@@ -2313,14 +2313,36 @@ function renderTournaments() {
             </div>
 
             <div class="form-group">
-              <label class="form-label">Total Prize Pool (BDT ৳) *</label>
-              <div style="display: flex; gap: 8px;">
-                <select id="new-t-prize-currency" class="form-control" style="width: 80px;">
-                  <option value="৳">৳ BDT</option>
-                  <option value="💎">💎 FF</option>
-                </select>
-                <input type="text" id="new-t-prize-pool" class="form-control" placeholder="e.g. 1500" required />
-              </div>
+              <label class="form-label">Prize Currency *</label>
+              <select id="new-t-prize-currency" class="form-control">
+                <option value="৳">৳ BDT (Taka)</option>
+                <option value="💎">💎 Free Fire Diamonds</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Total Prize Pool Summary *</label>
+              <input type="text" id="new-t-prize-pool" class="form-control" placeholder="e.g. 1500 or 1500 Diamonds" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">1st Place (Booyah) Prize *</label>
+              <input type="text" id="new-t-prize-1st" class="form-control" placeholder="e.g. 1000 or 1000 Diamonds" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">2nd Place Prize (Optional)</label>
+              <input type="text" id="new-t-prize-2nd" class="form-control" placeholder="e.g. 300 (Optional)" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">3rd Place Prize (Optional)</label>
+              <input type="text" id="new-t-prize-3rd" class="form-control" placeholder="e.g. 200 (Optional)" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Per Kill / MVP Prize (Optional)</label>
+              <input type="text" id="new-t-prize-kill" class="form-control" placeholder="e.g. 20 / Kill (Optional)" />
             </div>
 
             <div class="form-group">
@@ -2355,6 +2377,8 @@ function renderTournaments() {
             const isLive = !!t.isRoomReleased || t.status === 'LIVE' || t.status === 'Live';
             const roomIdVal = t.roomId || (t.roomCredentials && t.roomCredentials.roomId) || '';
             const roomPassVal = t.roomPass || (t.roomCredentials && t.roomCredentials.password) || '';
+            const participantsCount = (t.participants || []).length;
+            const slotsTotalVal = t.slotsTotal || t.maxSlots || 48;
 
             return `
               <div style="background: var(--bg-body); border: 1.5px solid ${isLive ? '#ef4444' : 'var(--border-color)'}; border-radius: var(--radius-lg); padding: 18px;">
@@ -2369,12 +2393,20 @@ function renderTournaments() {
                     <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
                       🎮 Mode: <strong>${t.gameMode || t.mode || 'Squad (4v4)'}</strong> | 🗺️ Map: <strong>${t.map || 'Bermuda'}</strong> | ⏰ Time: <strong>${t.matchTime || t.startDateTime || 'Tonight'}</strong>
                     </div>
-                    <div style="font-size: 12px; color: #10b981; font-weight: 700; margin-top: 2px;">
-                      🏆 Prize: ${t.prizePool || '৳ 1,500'} | Entry: ${t.entryFee || 'Free'} | Slots: ${t.slotsFilled || 0}/${t.slotsTotal || t.maxSlots || 48}
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px;">
+                      <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 800;">🏆 Total Prize: ${t.prizePool || '৳ 1,500'}</span>
+                      <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-weight: 800;">🥇 1st: ${t.prize1st || t.prizePool || '৳ 1,000'}</span>
+                      ${t.prize2nd ? `<span class="badge" style="background: rgba(139, 92, 246, 0.15); color: #c084fc; font-weight: 800;">🥈 2nd: ${t.prize2nd}</span>` : ''}
+                      ${t.prize3rd ? `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-weight: 800;">🥉 3rd: ${t.prize3rd}</span>` : ''}
+                      ${t.prizeKill ? `<span class="badge" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; font-weight: 800;">🎯 Kill: ${t.prizeKill}</span>` : ''}
+                      <span class="badge" style="background: rgba(100, 116, 139, 0.15); color: var(--text-muted);">Slots: ${participantsCount}/${slotsTotalVal}</span>
                     </div>
                   </div>
 
                   <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-primary btn-view-participants" data-id="${t.id}" style="padding: 6px 14px; font-size: 12px; background: linear-gradient(135deg, #0284c7, #2563eb); border: none;">
+                      👥 Registered Players (${participantsCount}/${slotsTotalVal})
+                    </button>
                     <button class="btn btn-secondary btn-toggle-tourn-status" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
                       ${t.isActive === false || t.status === 'INACTIVE' || t.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
                     </button>
@@ -3120,17 +3152,29 @@ function exportUsersJSON() {
 // ==========================================
 // 6. MODAL SYSTEM
 // ==========================================
-function openAdminModal(title, bodyHtml, onSaveCallback) {
+function openAdminModal(title, bodyHtml, onSaveCallback, saveBtnText = 'Save Changes') {
   const overlay = document.getElementById('admin-modal-overlay');
   const modalTitle = document.getElementById('admin-modal-title');
   const modalBody = document.getElementById('admin-modal-body');
   const btnSave = document.getElementById('admin-modal-save-btn');
+  const btnCancel = document.getElementById('admin-modal-cancel-btn');
 
   if (!overlay || !modalTitle || !modalBody) return;
 
   modalTitle.textContent = title;
   modalBody.innerHTML = bodyHtml;
   state.modalCallback = onSaveCallback;
+
+  if (btnSave) {
+    if (typeof onSaveCallback === 'function') {
+      btnSave.style.display = 'inline-flex';
+      btnSave.textContent = saveBtnText;
+      if (btnCancel) btnCancel.textContent = 'Cancel';
+    } else {
+      btnSave.style.display = 'none';
+      if (btnCancel) btnCancel.textContent = 'Close';
+    }
+  }
 
   overlay.classList.add('active');
 }
@@ -3258,16 +3302,22 @@ function bindCurrentTabEvents() {
   // Tournaments: Add Tournament
   document.getElementById('form-add-tournament')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const title = document.getElementById('new-t-title').value;
-    const mode = document.getElementById('new-t-mode').value;
-    const map = document.getElementById('new-t-map').value;
+    const title = document.getElementById('new-t-title').value.trim();
+    const mode = document.getElementById('new-t-mode').value.trim();
+    const map = document.getElementById('new-t-map').value.trim();
     const datetime = document.getElementById('new-t-datetime').value;
     const entryType = document.getElementById('new-t-entry-type').value;
     const entryVal = document.getElementById('new-t-entry-val').value;
     const prizeCurrency = document.getElementById('new-t-prize-currency').value;
-    const prizePool = document.getElementById('new-t-prize-pool').value;
+    const prizePool = document.getElementById('new-t-prize-pool').value.trim();
+    const prize1st = document.getElementById('new-t-prize-1st')?.value.trim() || '';
+    const prize2nd = document.getElementById('new-t-prize-2nd')?.value.trim() || '';
+    const prize3rd = document.getElementById('new-t-prize-3rd')?.value.trim() || '';
+    const prizeKill = document.getElementById('new-t-prize-kill')?.value.trim() || '';
     const maxSlots = parseInt(document.getElementById('new-t-slots').value) || 48;
-    const bannerUrl = document.getElementById('new-t-banner').value || 'assets/images/banner_esports.jpg';
+    const bannerUrl = document.getElementById('new-t-banner').value.trim() || 'assets/images/banner_esports.jpg';
+
+    const formattedPrizePool = prizePool.startsWith('৳') || prizePool.includes('💎') ? prizePool : `${prizeCurrency} ${prizePool}`;
 
     const newTourn = {
       id: 'tourn-' + Date.now(),
@@ -3279,8 +3329,12 @@ function bindCurrentTabEvents() {
       startDateTime: datetime,
       matchTime: datetime ? new Date(datetime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tonight at 08:30 PM',
       entryFee: entryType === 'Free' ? 'Free' : entryVal,
-      prizePool: prizeCurrency + ' ' + prizePool,
+      prizePool: formattedPrizePool,
       prizeCurrency,
+      prize1st: prize1st ? (prize1st.startsWith('৳') || prize1st.includes('💎') ? prize1st : `${prizeCurrency} ${prize1st}`) : formattedPrizePool,
+      prize2nd: prize2nd ? (prize2nd.startsWith('৳') || prize2nd.includes('💎') ? prize2nd : `${prizeCurrency} ${prize2nd}`) : '',
+      prize3rd: prize3rd ? (prize3rd.startsWith('৳') || prize3rd.includes('💎') ? prize3rd : `${prizeCurrency} ${prize3rd}`) : '',
+      prizeKill: prizeKill ? (prizeKill.startsWith('৳') || prizeKill.includes('💎') ? prizeKill : `${prizeCurrency} ${prizeKill}`) : '',
       slotsTotal: maxSlots,
       maxSlots: maxSlots,
       slotsFilled: 0,
@@ -3302,6 +3356,79 @@ function bindCurrentTabEvents() {
 
     await syncToFirestore('tournaments', newTourn.id, newTourn);
     broadcastSync('TOURNAMENTS_UPDATED', newTourn);
+  });
+
+  // Tournaments: View Registered Players Modal
+  document.querySelectorAll('.btn-view-participants').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (!t) return;
+
+      const participants = t.participants || [];
+      const slotsTotal = t.slotsTotal || t.maxSlots || 48;
+
+      const tableRows = participants.length === 0 ? `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 28px 16px; color: var(--text-muted);">
+            <div style="font-size: 24px; margin-bottom: 6px;">🎮</div>
+            <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">No players have joined yet</div>
+            <div style="font-size: 11px; margin-top: 4px;">When gamers register from the mobile app, their real-time details (IGN, FF UID, WhatsApp) will appear here instantly!</div>
+          </td>
+        </tr>
+      ` : participants.map((p, idx) => `
+        <tr style="border-bottom: 1px solid var(--border-color);">
+          <td style="padding: 10px 12px; font-weight: 800; color: var(--primary);">#${p.slot || (idx + 1)}</td>
+          <td style="padding: 10px 12px; font-weight: 700; color: var(--text-main);">${p.playerName || p.username || 'Player'}</td>
+          <td style="padding: 10px 12px; font-family: monospace; font-weight: 800; color: #10b981;">${p.ffUid || 'N/A'}</td>
+          <td style="padding: 10px 12px; color: var(--text-secondary);">
+            <a href="https://wa.me/${(p.phone || '').replace(/[^0-9]/g, '')}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+              <span>📱</span><span>${p.phone || 'N/A'}</span>
+            </a>
+          </td>
+          <td style="padding: 10px 12px; font-size: 11px; color: var(--text-muted);">${p.joinedAt || 'Just now'}</td>
+        </tr>
+      `).join('');
+
+      const modalHtml = `
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-body); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">${t.title}</div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">🎮 Mode: <strong>${t.gameMode || 'Squad'}</strong> | 🗺️ Map: <strong>${t.map || 'Bermuda'}</strong> | 🏆 Prize: <strong>${t.prizePool}</strong></div>
+            </div>
+            <div style="text-align: right;">
+              <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 900; font-size: 13px; padding: 6px 14px; border: 1px solid rgba(16, 185, 129, 0.4);">
+                ${participants.length} / ${slotsTotal} Joined
+              </span>
+            </div>
+          </div>
+
+          <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+              <thead>
+                <tr style="background: var(--bg-body); border-bottom: 1.5px solid var(--border-color); text-align: left; font-size: 11px; color: var(--text-muted); text-transform: uppercase;">
+                  <th style="padding: 10px 12px;">Slot #</th>
+                  <th style="padding: 10px 12px;">Gamer IGN</th>
+                  <th style="padding: 10px 12px;">Free Fire UID</th>
+                  <th style="padding: 10px 12px;">WhatsApp / Phone</th>
+                  <th style="padding: 10px 12px;">Registered Date/Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </div>
+
+          <div style="font-size: 11px; color: var(--text-muted); text-align: center;">
+            ⚡ 100% Real-time Firestore sync active. Tap any phone number to open WhatsApp chat with the player directly.
+          </div>
+        </div>
+      `;
+
+      openAdminModal(`👥 Registered Players (${participants.length})`, modalHtml, null);
+    });
   });
 
   // Tournaments: Release Room ID & Password
@@ -3372,8 +3499,24 @@ function bindCurrentTabEvents() {
             <input type="text" id="edit-t-map" class="form-control" value="${t.map || 'Bermuda'}" />
           </div>
           <div class="form-group">
-            <label class="form-label">Prize Pool</label>
+            <label class="form-label">Total Prize Pool</label>
             <input type="text" id="edit-t-prize" class="form-control" value="${t.prizePool || '৳ 1500'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">1st Prize (Booyah)</label>
+            <input type="text" id="edit-t-prize-1st" class="form-control" value="${t.prize1st || ''}" placeholder="e.g. ৳ 1000 or 1000 💎" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">2nd Prize (Optional)</label>
+            <input type="text" id="edit-t-prize-2nd" class="form-control" value="${t.prize2nd || ''}" placeholder="e.g. ৳ 300 or 300 💎" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">3rd Prize (Optional)</label>
+            <input type="text" id="edit-t-prize-3rd" class="form-control" value="${t.prize3rd || ''}" placeholder="e.g. ৳ 200 or 200 💎" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Per Kill Prize (Optional)</label>
+            <input type="text" id="edit-t-prize-kill" class="form-control" value="${t.prizeKill || ''}" placeholder="e.g. ৳ 20 / Kill" />
           </div>
           <div class="form-group">
             <label class="form-label">Entry Fee</label>
@@ -3404,6 +3547,10 @@ function bindCurrentTabEvents() {
         t.mode = t.gameMode;
         t.map = document.getElementById('edit-t-map').value.trim() || t.map;
         t.prizePool = document.getElementById('edit-t-prize').value.trim() || t.prizePool;
+        t.prize1st = document.getElementById('edit-t-prize-1st')?.value.trim() || t.prizePool;
+        t.prize2nd = document.getElementById('edit-t-prize-2nd')?.value.trim() || '';
+        t.prize3rd = document.getElementById('edit-t-prize-3rd')?.value.trim() || '';
+        t.prizeKill = document.getElementById('edit-t-prize-kill')?.value.trim() || '';
         t.entryFee = document.getElementById('edit-t-fee').value.trim() || t.entryFee;
         t.slotsTotal = parseInt(document.getElementById('edit-t-slots').value) || t.slotsTotal;
         t.maxSlots = t.slotsTotal;
