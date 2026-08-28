@@ -1,11 +1,12 @@
-﻿{
+{
   "name": "mobinx-admin-console",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "server.js",
   "scripts": {
+    "start": "node server.js",
     "dev": "node server.js",
-    "start": "node server.js"
+    "build": "node -e \"console.log('Admin Console build ready')\""
   }
 }
