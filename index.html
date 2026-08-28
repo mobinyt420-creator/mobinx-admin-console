@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css">
   <style id="inlined-admin-styles">
 /* ==========================================================================
    MOBIN X - STANDALONE SAAS ADMIN PANEL STYLESHEET
@@ -1565,7 +1564,15 @@ textarea.form-control {
 // Real-Time Firebase Cloud Firestore Synchronization Engine
 // ==========================================================================
 
-import { firebaseConfig } from './firebaseConfig.js';
+const firebaseConfig = {
+  projectId: "obin-shop",
+  appId: "1:219633934545:web:530b11c03ab12a87e065f0",
+  storageBucket: "obin-shop.firebasestorage.app",
+  apiKey: "AIzaSyAhXqIMw0YFQFtlrPBzhUNnvl3Oye7kU88",
+  authDomain: "obin-shop.firebaseapp.com",
+  messagingSenderId: "219633934545",
+  measurementId: "G-HS93YRE6KC"
+};
 
 // ==========================================
 // 1. FIREBASE & CLOUD FIRESTORE INTEGRATION
