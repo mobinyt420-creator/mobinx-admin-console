@@ -1456,99 +1456,36 @@ function renderAuthSettings() {
       <!-- Feature Controls Form -->
       <form id="form-auth-settings">
         
-        <!-- SECTION 1: SIGN UP METHODS -->
+        <!-- SECTION 1: AUTHENTICATION SYSTEM -->
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">📝 SIGN UP METHODS</div>
-              <div class="card-subtitle">Control how new gamers can register on MOBIN X</div>
+              <div class="card-title">🌐 GOOGLE AUTHENTICATION SYSTEM</div>
+              <div class="card-subtitle">Control 1-Tap Google Sign-In and profile creation for gamers</div>
             </div>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 14px;">
-            <!-- Google Sign Up -->
+            <!-- Google Sign Up / Sign In -->
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
               <div>
                 <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                  <span>🌐 Google Sign Up</span>
+                  <span>🌐 Google Authentication (1-Tap Sign In)</span>
                   <span id="badge-google-signup" class="badge" style="background: ${authConfig.googleSignUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.googleSignUpEnabled !== false ? '#34d399' : '#f87171'};">
                     ${authConfig.googleSignUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
                   </span>
                 </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Enables 1-tap Google account registration flow in the app</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Enables Google Sign-In on the onboarding & profile setup screen</div>
               </div>
               <label class="switch">
                 <input type="checkbox" id="flag-google-signup" ${authConfig.googleSignUpEnabled !== false ? 'checked' : ''} />
                 <span class="slider"></span>
               </label>
             </div>
-
-            <!-- Manual Sign Up -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-              <div>
-                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                  <span>✉️ Manual Sign Up</span>
-                  <span id="badge-manual-signup" class="badge" style="background: ${authConfig.manualSignUpEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.manualSignUpEnabled !== false ? '#34d399' : '#f87171'};">
-                    ${authConfig.manualSignUpEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Enables 4-step Name &rarr; Email &rarr; Phone &rarr; Password registration screen</div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="flag-manual-signup" ${authConfig.manualSignUpEnabled !== false ? 'checked' : ''} />
-                <span class="slider"></span>
-              </label>
-            </div>
           </div>
         </div>
 
-        <!-- SECTION 2: LOGIN METHODS -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">🔑 LOGIN METHODS</div>
-              <div class="card-subtitle">Control how existing players log in</div>
-            </div>
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 14px;">
-            <!-- Google Login -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-              <div>
-                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                  <span>🌐 Google Login</span>
-                  <span id="badge-google-login" class="badge" style="background: ${authConfig.googleLoginEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.googleLoginEnabled !== false ? '#34d399' : '#f87171'};">
-                    ${authConfig.googleLoginEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Shows "Continue with Google" on the login screen</div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="flag-google-login" ${authConfig.googleLoginEnabled !== false ? 'checked' : ''} />
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <!-- Manual Email/Password Login -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-              <div>
-                <div style="font-size: 14px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                  <span>✉️ Manual Email / Password Login</span>
-                  <span id="badge-manual-login" class="badge" style="background: ${authConfig.manualLoginEnabled !== false ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${authConfig.manualLoginEnabled !== false ? '#34d399' : '#f87171'};">
-                    ${authConfig.manualLoginEnabled !== false ? 'ON (ACTIVE)' : 'OFF (DISABLED)'}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Shows Email + Password input boxes & Forgot Password flow</div>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="flag-manual-login" ${authConfig.manualLoginEnabled !== false ? 'checked' : ''} />
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- SECTION 3: ECOSYSTEM FEATURE FLAGS -->
+        <!-- SECTION 2: ECOSYSTEM FEATURE FLAGS -->
         <div class="card">
           <div class="card-header">
             <div>
@@ -2335,15 +2272,6 @@ function bindCurrentTabEvents() {
   document.getElementById('flag-google-signup')?.addEventListener('change', (e) => {
     updateBadge('badge-google-signup', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
   });
-  document.getElementById('flag-manual-signup')?.addEventListener('change', (e) => {
-    updateBadge('badge-manual-signup', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
-  });
-  document.getElementById('flag-google-login')?.addEventListener('change', (e) => {
-    updateBadge('badge-google-login', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
-  });
-  document.getElementById('flag-manual-login')?.addEventListener('change', (e) => {
-    updateBadge('badge-manual-login', e.target.checked, 'ON (ACTIVE)', 'OFF (DISABLED)');
-  });
   document.getElementById('flag-topup-access')?.addEventListener('change', (e) => {
     updateBadge('badge-topup-access', e.target.checked, 'ON (ACTIVE)', 'OFF (HIDDEN)');
   });
@@ -2351,16 +2279,13 @@ function bindCurrentTabEvents() {
   document.getElementById('form-auth-settings')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const googleSignUpEnabled = document.getElementById('flag-google-signup')?.checked ?? true;
-    const manualSignUpEnabled = document.getElementById('flag-manual-signup')?.checked ?? true;
-    const googleLoginEnabled = document.getElementById('flag-google-login')?.checked ?? true;
-    const manualLoginEnabled = document.getElementById('flag-manual-login')?.checked ?? true;
     const topUpEnabled = document.getElementById('flag-topup-access')?.checked ?? true;
 
     state.authSettings = {
       googleSignUpEnabled,
-      manualSignUpEnabled,
-      googleLoginEnabled,
-      manualLoginEnabled,
+      manualSignUpEnabled: false,
+      googleLoginEnabled: googleSignUpEnabled,
+      manualLoginEnabled: false,
       topUpEnabled,
       lastUpdated: new Date().toISOString()
     };
