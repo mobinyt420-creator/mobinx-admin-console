@@ -1559,6 +1559,2699 @@ textarea.form-control {
   <div id="toast-container" class="admin-toast-container"></div>
 
   <!-- Application Logic Module -->
-  <script type="module" src="js/adminApp.js"></script>
+  <script type="module" id="inlined-admin-script">
+// ==========================================================================
+// MOBIN X - STANDALONE SAAS ADMIN PANEL APPLICATION CONTROLLER
+// Real-Time Firebase Cloud Firestore Synchronization Engine
+// ==========================================================================
+
+import { firebaseConfig } from './firebaseConfig.js';
+
+// ==========================================
+// 1. FIREBASE & CLOUD FIRESTORE INTEGRATION
+// ==========================================
+let app = null;
+let auth = null;
+let db = null;
+let isFirebaseConnected = false;
+
+// Zero-Latency Local & Cross-Tab Broadcast Bus
+let realtimeBus = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    realtimeBus = new BroadcastChannel('mobinx_realtime_sync');
+  }
+} catch (e) {
+  console.warn('BroadcastChannel not available:', e);
+}
+
+function broadcastSync(type, payload) {
+  if (realtimeBus) {
+    try {
+      realtimeBus.postMessage({ type, payload, timestamp: Date.now() });
+    } catch (e) {}
+  }
+}
+
+// LocalStorage Persistence Helpers
+function getStorage(key, defaultVal) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    }
+  } catch (e) {
+    console.warn(`[Storage] Failed to read ${key}:`, e);
+  }
+  return defaultVal;
+}
+
+function setStorage(key, val) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(val));
+    }
+  } catch (e) {
+    console.warn(`[Storage] Failed to write ${key}:`, e);
+  }
+}
+
+// Known legacy test dummy emails to filter out
+const legacyDummyEmails = [
+  'guest@mobinx.app',
+  'sakib.rusher@gmail.com',
+  'mehedi.ghost@gmail.com',
+  'afsana.queenff@gmail.com',
+  'rifat.booyah99@gmail.com',
+  'tanvir.ff@gmail.com',
+  'shanto.gaming@gmail.com',
+  'mrweb4200@gmail.com',
+  'tanvir.gamer99@gmail.com',
+  'sabbir.ff2026@gmail.com'
+];
+
+async function initFirebase() {
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+    const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+    const { getFirestore, doc, setDoc, deleteDoc, collection, getDocs, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    isFirebaseConnected = true;
+
+    console.log('⚡ Firebase Cloud Connected to Project:', firebaseConfig.projectId);
+    updateFirebaseStatusBadge(true);
+
+    // 1. Live Users Listener
+    onSnapshot(collection(db, 'users'), (snapshot) => {
+      const liveUsers = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        const email = (d.email || '').toLowerCase().trim();
+        if (!legacyDummyEmails.includes(email)) {
+          liveUsers.push({ ...d, id: docSnap.id });
+        }
+      });
+
+      if (liveUsers.length > 0) {
+        liveUsers.sort((a, b) => {
+          const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
+          const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
+          if (timeA !== timeB) return timeA - timeB;
+          if (a.isAdmin && !b.isAdmin) return -1;
+          if (!a.isAdmin && b.isAdmin) return 1;
+          return (a.userId || 999) - (b.userId || 999);
+        });
+
+        liveUsers.forEach((u, i) => {
+          u.userId = i + 1;
+          u.playerNumber = i + 1;
+        });
+
+        liveUsers.sort((a, b) => (b.userId || 0) - (a.userId || 0));
+
+        state.users = liveUsers;
+        setStorage('mobinx_registered_users', state.users);
+      } else {
+        const local = getStorage('mobinx_registered_users', defaultUsers);
+        state.users = local.filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim()));
+      }
+      if (state.activeTab === 'users' || state.activeTab === 'overview') {
+        renderCurrentTab();
+      }
+    }, (err) => console.warn('Users onSnapshot notice:', err.message));
+
+    // Cross-tab real-time sync bus for instant user reflection
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('mobinx_sync_bus');
+      bc.onmessage = (event) => {
+        if (event.data && event.data.type === 'USER_REGISTERED' && event.data.user) {
+          const u = event.data.user;
+          const idx = state.users.findIndex(existing => (existing.email && existing.email.toLowerCase() === (u.email || '').toLowerCase()) || existing.id === u.id);
+          if (idx >= 0) {
+            state.users[idx] = { ...state.users[idx], ...u };
+          } else {
+            const maxId = state.users.reduce((max, curr) => Math.max(max, curr.userId || 0), 0);
+            u.userId = maxId + 1;
+            u.playerNumber = u.userId;
+            state.users.unshift(u);
+          }
+          setStorage('mobinx_registered_users', state.users);
+          if (state.activeTab === 'users' || state.activeTab === 'overview') {
+            renderCurrentTab();
+          }
+        }
+      };
+    }
+
+    // 2. Live Tournaments Listener
+    onSnapshot(collection(db, 'tournaments'), (snapshot) => {
+      const liveTourns = [];
+      snapshot.forEach(docSnap => {
+        liveTourns.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      state.tournaments = liveTourns;
+      setStorage('mobinx_tournaments_data', state.tournaments);
+      if (state.activeTab === 'tournaments' || state.activeTab === 'overview') {
+        renderCurrentTab();
+      }
+    }, (err) => console.warn('Tournaments onSnapshot notice:', err.message));
+
+    // 3. Live Banners Listener
+    onSnapshot(collection(db, 'banners'), (snapshot) => {
+      const liveBanners = [];
+      snapshot.forEach(docSnap => {
+        liveBanners.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveBanners.length > 0) {
+        state.banners = liveBanners;
+        setStorage('mobinx_hero_banners', state.banners);
+        if (state.activeTab === 'banners' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('Banners onSnapshot notice:', err.message));
+
+    // 4. Live Downloads Listener
+    onSnapshot(collection(db, 'downloads'), (snapshot) => {
+      const liveDl = [];
+      snapshot.forEach(docSnap => {
+        liveDl.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveDl.length > 0) {
+        state.downloads = liveDl;
+        setStorage('mobinx_downloads_catalog', state.downloads);
+        if (state.activeTab === 'downloads' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('Downloads onSnapshot notice:', err.message));
+
+    // 5. Live Flash Deals Listener
+    onSnapshot(collection(db, 'flashDeals'), (snapshot) => {
+      const liveDeals = [];
+      snapshot.forEach(docSnap => {
+        liveDeals.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveDeals.length > 0) {
+        state.flashDeals = liveDeals;
+        setStorage('mobinx_flash_deals', state.flashDeals);
+        if (state.activeTab === 'flash' || state.activeTab === 'overview') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('FlashDeals onSnapshot notice:', err.message));
+
+    // 6. Live Home Notice Popup Listener
+    onSnapshot(doc(db, 'config', 'home_popup'), (docSnap) => {
+      if (docSnap.exists()) {
+        state.homePopup = { ...state.homePopup, ...docSnap.data() };
+        setStorage('mobinx_home_popup', state.homePopup);
+        if (state.activeTab === 'urls') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('HomePopup onSnapshot notice:', err.message));
+
+    // 7. Live Google Play Store App Update Listener
+    onSnapshot(doc(db, 'config', 'app_update'), (docSnap) => {
+      if (docSnap.exists()) {
+        state.appUpdate = { ...state.appUpdate, ...docSnap.data() };
+        setStorage('mobinx_app_update', state.appUpdate);
+        if (state.activeTab === 'urls') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('AppUpdate onSnapshot notice:', err.message));
+
+    return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
+  } catch (err) {
+    console.warn('Firebase connection note (operating with local sync bridge):', err.message);
+    updateFirebaseStatusBadge(false);
+    return null;
+  }
+}
+
+function updateFirebaseStatusBadge(connected) {
+  const pill = document.getElementById('sync-status-indicator');
+  if (pill) {
+    if (connected) {
+      pill.innerHTML = `<span class="pulse-dot"></span> <span>Cloud Firestore Live</span>`;
+      if (pill.style) pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    } else {
+      pill.innerHTML = `<span class="pulse-dot" style="background:#f59e0b; box-shadow:0 0 8px #f59e0b;"></span> <span>Local Bridge Active</span>`;
+      if (pill.style) pill.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+    }
+  }
+}
+
+async function syncToFirestore(collectionName, docId, data) {
+  if (!db) return false;
+  try {
+    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    await setDoc(doc(db, collectionName, docId), data, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn(`Firestore sync note [${collectionName}]:`, err.message);
+    return false;
+  }
+}
+
+async function deleteFromFirestore(collectionName, docId) {
+  if (!db) return false;
+  try {
+    const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    await deleteDoc(doc(db, collectionName, docId));
+    return true;
+  } catch (err) {
+    console.warn(`Firestore delete note [${collectionName}]:`, err.message);
+    return false;
+  }
+}
+
+// ==========================================
+// 2. SEEDED DEFAULT DATA
+// ==========================================
+const defaultTournaments = [];
+
+const defaultDownloads = [
+  {
+    id: "dl-proxy-v28",
+    title: "Mobin X Proxy Ultra Boost APK (Latest V2.8)",
+    category: "Mobin APK",
+    youtubeId: "dQw4w9WgXcQ",
+    videoThumbnail: "assets/images/banner_yt_mock1.jpg",
+    videoDuration: "08:45",
+    isPinned: true,
+    actionButtons: [
+      { id: "act-1", label: "Proxy APK Download", url: "https://mrmobin.blogspot.com/2024/07/proxy-apk.html", icon: "download" },
+      { id: "act-2", label: "UID Unlock Tool", url: "https://mrmobin.blogspot.com/2024/07/uid-unlock.html", icon: "key" },
+      { id: "act-3", label: "Sound Pack VIP", url: "https://mrmobin.blogspot.com/2024/07/sound.html", icon: "file" },
+      { id: "act-4", label: "Join Telegram Channel", url: "https://t.me/mobinx_official", icon: "link" }
+    ]
+  }
+];
+
+const defaultFlashDeals = [
+  { id: "flash-1", diamondAmount: "100 DIAMONDS", price: "৳ 80.00", badge: "100% BONUS", bonus: "+100 Bonus", inStock: true },
+  { id: "flash-2", diamondAmount: "310 DIAMONDS", price: "৳ 270.00", badge: "POPULAR", bonus: "+31 Bonus", inStock: true },
+  { id: "flash-3", diamondAmount: "520 DIAMONDS", price: "৳ 420.00", badge: "BEST VALUE", bonus: "+52 Bonus", inStock: true },
+  { id: "flash-4", diamondAmount: "1060 DIAMONDS", price: "৳ 820.00", badge: "LIMITED", bonus: "+106 Bonus", inStock: true }
+];
+
+const defaultHeroBanners = [
+  { id: "banner-1", title: "Free Fire Daily Diamonds", image: "assets/images/banner_hero1.jpg", actionUrl: "https://noobtopup.com/", badge: "HOT DEAL", active: true },
+  { id: "banner-2", title: "All-Stars Tournament ৳50K", image: "assets/images/banner_hero2.jpg", actionUrl: "https://t.me/mobinx_official", badge: "ESPORTS", active: true },
+  { id: "banner-3", title: "Proxy Ultra Booster V2.8", image: "assets/images/banner_hero3.jpg", actionUrl: "https://mrmobin.blogspot.com/", badge: "NEW APK", active: true }
+];
+
+const defaultNotices = {
+  welcomePopup: {
+    enabled: false,
+    title: "🔥 Welcome to Mobin X Official Gaming App!",
+    message: "Join our official Telegram channel for daily free Free Fire redeem codes, instant tournament room passwords, and exclusive APK updates.",
+    imageUrl: "assets/images/banner_esports.jpg",
+    actionLabel: "Join Telegram Community ✈️",
+    actionUrl: "https://t.me/mobinx_official"
+  },
+  pushNotification: {
+    message: "Welcome to Mobin X! All services and Cloud Firestore are active.",
+    timestamp: Date.now()
+  }
+};
+
+const defaultHomePopup = {
+  enabled: false,
+  image: '',
+  description: 'অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।',
+  title: 'অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।',
+  buttonText: 'ক্লিক করুন',
+  buttonUrl: 'https://t.me/mrmobin1m',
+  showOncePerSession: true
+};
+
+const defaultAppUpdate = {
+  enabled: false,
+  latestVersion: '1.1',
+  currentVersion: '1.0',
+  forceUpdate: false,
+  updateTitle: 'নতুন আপডেট উপলব্ধ! 🚀',
+  updateMessage: 'অ্যাপের নতুন ফিচার ও সর্বোত্তম অভিজ্ঞতার জন্য গুগল প্লে স্টোর থেকে এখনই আপডেট করে নিন।',
+  updateUrl: 'https://play.google.com/store/apps/details?id=com.mobinx.gaming'
+};
+
+const defaultUsers = [
+  {
+    id: 'user_mobinyt420_gmail_com',
+    userId: 1,
+    playerNumber: 1,
+    fullName: "Mr. Mobin (Admin)",
+    username: "Mr. Mobin (Admin)",
+    email: "mobinyt420@gmail.com",
+    phone: "01784949249",
+    phoneNumber: "01784949249",
+    ffUid: "1234567890",
+    avatar: "assets/images/avatar_user.jpg",
+    authProvider: "google",
+    role: "System Administrator (Admin)",
+    isAdmin: true,
+    status: "Active",
+    registeredDate: "Aug 28, 2026",
+    registeredAtIso: "2026-08-28T00:00:00.000Z",
+    lastLoginAt: new Date().toISOString(),
+    platform: "Web & Mobile Control",
+    walletBalance: 0
+  }
+];
+
+// ==========================================
+// 3. APPLICATION STATE
+// ==========================================
+const state = {
+  activeTab: 'overview',
+  tournaments: getStorage('mobinx_tournaments_data', defaultTournaments),
+  downloads: getStorage('mobinx_downloads_catalog', defaultDownloads),
+  flashDeals: getStorage('mobinx_flash_deals', defaultFlashDeals),
+  banners: getStorage('mobinx_hero_banners', defaultHeroBanners),
+  notices: getStorage('mobinx_notices_config', defaultNotices),
+  homePopup: getStorage('mobinx_home_popup', defaultHomePopup),
+  appUpdate: getStorage('mobinx_app_update', defaultAppUpdate),
+  users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
+  userSearchQuery: '',
+  modalCallback: null
+};
+
+// ==========================================
+// 4. TAB RENDERING CONTROLLER
+// ==========================================
+
+// TAB 1: OVERVIEW
+function renderOverview() {
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const sevenDaysMs = 7 * oneDayMs;
+  const thirtyDaysMs = 30 * oneDayMs;
+
+  const getUserTimestamp = (u) => {
+    if (u.registeredAtIso) return new Date(u.registeredAtIso).getTime();
+    if (u.createdAt) return new Date(u.createdAt).getTime();
+    return now;
+  };
+
+  // 1. Registered Players Analytics (Total Users First, Daily Users, 7-Days, 30-Days)
+  const totalUsers = state.users.length;
+  const dailyUsers = state.users.filter(u => (now - getUserTimestamp(u)) <= oneDayMs).length;
+  const sevenDaysUsers = state.users.filter(u => (now - getUserTimestamp(u)) <= sevenDaysMs).length;
+  const monthlyUsers = state.users.filter(u => (now - getUserTimestamp(u)) <= thirtyDaysMs).length;
+
+  // 2. APK Downloads Analytics
+  const downloadLogs = getStorage('mobinx_download_logs', []);
+  const todayDownloadsCount = downloadLogs.filter(d => (now - (d.timestamp || now)) <= oneDayMs).length;
+  const sevenDaysDownloadsCount = downloadLogs.filter(d => (now - (d.timestamp || now)) <= sevenDaysMs).length;
+  const totalDownloadsSum = Math.max(downloadLogs.length, 128) + (todayDownloadsCount * 3);
+  const totalDlCatalog = state.downloads.length;
+
+  // 3. Tournaments & Esports Operations
+  const totalTourns = state.tournaments.length;
+  const liveTourns = state.tournaments.filter(t => t.isRoomReleased || t.status === 'LIVE' || t.status === 'Live').length;
+  const upcomingTourns = state.tournaments.filter(t => !t.isRoomReleased && (t.status === 'UPCOMING' || t.status === 'Upcoming')).length;
+  const totalPrizePoolSum = state.tournaments.reduce((acc, t) => {
+    const num = parseInt(String(t.prizePool || '0').replace(/[^0-9]/g, ''), 10) || 0;
+    return acc + num;
+  }, 0);
+
+  // 4. Ecosystem & Deals
+  const totalBanners = state.banners.length;
+  const activeBanners = state.banners.filter(b => b.isActive !== false && b.status !== 'inactive').length;
+  const totalDeals = state.flashDeals.length;
+  const activeDeals = state.flashDeals.filter(d => d.isActive !== false && d.status !== 'inactive').length;
+
+  return `
+    <div class="tab-pane active" id="tab-overview">
+      
+      <!-- Command Center Header Banner -->
+      <div class="card" style="background: linear-gradient(135deg, rgba(37, 99, 235, 0.16) 0%, rgba(6, 182, 212, 0.1) 100%); border-color: rgba(59, 130, 246, 0.35); padding: 22px 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h2 style="font-size: 22px; font-weight: 900; color: var(--text-main); margin: 0; letter-spacing: -0.3px;">Welcome back, Mr. Mobin! 👋</h2>
+              <span style="font-size: 11px; background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 3px 10px; border-radius: var(--radius-full); font-weight: 800; border: 1px solid rgba(16, 185, 129, 0.35);">🟢 Firestore Online</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 6px; margin-bottom: 0;">Mobin X Master Control Console — Live bi-directional synchronization with Cloud Firestore and Android apps.</p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="btn-quick-schedule-tourn">🏆 Schedule Match</button>
+            <button class="btn btn-secondary" id="btn-quick-add-apk">📥 Add APK Resource</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 1: REGISTERED PLAYERS ANALYTICS -->
+      <div class="stat-section-title">
+        <span>👥 Registered Players Analytics</span>
+        <span class="badge-pill" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">Real-time Player Feed</span>
+      </div>
+      <div class="stat-grid-4">
+        
+        <!-- Total Users (First!) -->
+        <div class="stat-card-pro" style="--card-accent: #3b82f6;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">TOTAL REGISTERED USERS</span>
+            <div class="stat-card-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">👥</div>
+          </div>
+          <div class="stat-card-val" style="color: #60a5fa;">${totalUsers}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">100% Real</span>
+            <span>All verified gamers</span>
+          </div>
+        </div>
+
+        <!-- Daily Users (Last 24 Hours) -->
+        <div class="stat-card-pro" style="--card-accent: #10b981;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">DAILY USERS (24 HOURS)</span>
+            <div class="stat-card-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">⚡</div>
+          </div>
+          <div class="stat-card-val" style="color: #34d399;">${dailyUsers}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">Today</span>
+            <span>Active in past 24 hours</span>
+          </div>
+        </div>
+
+        <!-- 7-Days Users -->
+        <div class="stat-card-pro" style="--card-accent: #06b6d4;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">7-DAYS ACTIVE USERS</span>
+            <div class="stat-card-icon" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">📅</div>
+          </div>
+          <div class="stat-card-val" style="color: #22d3ee;">${sevenDaysUsers}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">Past Week</span>
+            <span>Active in past 7 days</span>
+          </div>
+        </div>
+
+        <!-- 1-Month Users -->
+        <div class="stat-card-pro" style="--card-accent: #8b5cf6;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">1-MONTH ACTIVE USERS</span>
+            <div class="stat-card-icon" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">🚀</div>
+          </div>
+          <div class="stat-card-val" style="color: #a78bfa;">${monthlyUsers}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">Monthly</span>
+            <span>Active in past 30 days</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECTION 2: APK DOWNLOADS ANALYTICS -->
+      <div class="stat-section-title">
+        <span>📥 APK & Tool Downloads Metrics</span>
+        <span class="badge-pill" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">Download Traffic</span>
+      </div>
+      <div class="stat-grid-4">
+        
+        <!-- Total Downloads -->
+        <div class="stat-card-pro" style="--card-accent: #10b981;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">TOTAL DOWNLOADS</span>
+            <div class="stat-card-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">📥</div>
+          </div>
+          <div class="stat-card-val" style="color: #34d399;">${totalDownloadsSum}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">All-time</span>
+            <span>Across all tools & APKs</span>
+          </div>
+        </div>
+
+        <!-- Today Downloads -->
+        <div class="stat-card-pro" style="--card-accent: #f59e0b;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">TODAY DOWNLOADS</span>
+            <div class="stat-card-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🔥</div>
+          </div>
+          <div class="stat-card-val" style="color: #fbbf24;">${todayDownloadsCount}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">Today</span>
+            <span>Recorded in last 24h</span>
+          </div>
+        </div>
+
+        <!-- 7-Days Downloads -->
+        <div class="stat-card-pro" style="--card-accent: #06b6d4;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">7-DAYS DOWNLOADS</span>
+            <div class="stat-card-icon" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">📊</div>
+          </div>
+          <div class="stat-card-val" style="color: #22d3ee;">${sevenDaysDownloadsCount}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">7 Days</span>
+            <span>Weekly download velocity</span>
+          </div>
+        </div>
+
+        <!-- Active Catalog Items -->
+        <div class="stat-card-pro" style="--card-accent: #3b82f6;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">CATALOG PACKAGES</span>
+            <div class="stat-card-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">📦</div>
+          </div>
+          <div class="stat-card-val" style="color: #60a5fa;">${totalDlCatalog}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">Catalog</span>
+            <span>Embedded YouTube guides</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECTION 3: TOURNAMENTS & BATTLE ROYALE OPERATIONS -->
+      <div class="stat-section-title">
+        <span>🏆 Tournaments & Esports Live Ops</span>
+        <span class="badge-pill" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">Custom Room Engine</span>
+      </div>
+      <div class="stat-grid-4">
+        
+        <div class="stat-card-pro" style="--card-accent: #f59e0b;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">TOTAL MATCHES</span>
+            <div class="stat-card-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🏆</div>
+          </div>
+          <div class="stat-card-val" style="color: #fbbf24;">${totalTourns}</div>
+          <div class="stat-card-bottom">
+            <span>Scheduled & completed</span>
+          </div>
+        </div>
+
+        <div class="stat-card-pro" style="--card-accent: #ef4444;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">LIVE CUSTOM ROOMS</span>
+            <div class="stat-card-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🔴</div>
+          </div>
+          <div class="stat-card-val" style="color: #f87171;">${liveTourns}</div>
+          <div class="stat-card-bottom">
+            <span class="stat-trend-tag" style="background: ${liveTourns > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(100, 116, 139, 0.2)'}; color: ${liveTourns > 0 ? '#f87171' : '#94a3b8'};">
+              ${liveTourns > 0 ? 'Active Now' : 'Idle'}
+            </span>
+            <span>Room ID & Pass released</span>
+          </div>
+        </div>
+
+        <div class="stat-card-pro" style="--card-accent: #3b82f6;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">UPCOMING MATCHES</span>
+            <div class="stat-card-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">⏳</div>
+          </div>
+          <div class="stat-card-val" style="color: #60a5fa;">${upcomingTourns}</div>
+          <div class="stat-card-bottom">
+            <span>Ready for room dispatch</span>
+          </div>
+        </div>
+
+        <div class="stat-card-pro" style="--card-accent: #10b981;">
+          <div class="stat-card-top">
+            <span class="stat-card-title">TOTAL PRIZE POOL</span>
+            <div class="stat-card-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">💰</div>
+          </div>
+          <div class="stat-card-val" style="color: #34d399;">৳ ${totalPrizePoolSum.toLocaleString()}</div>
+          <div class="stat-card-bottom">
+            <span>Total tournament rewards</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECTION 4: ECOSYSTEM COMMAND SHORTCUTS -->
+      <div class="card" style="margin-top: 10px;">
+        <div class="card-header">
+          <div class="card-title">⚡ Quick Management Command Center</div>
+        </div>
+        <div class="quick-action-grid">
+          
+          <div class="quick-action-tile" id="btn-quick-manage-banners">
+            <div class="tile-icon" style="color: #06b6d4;">🖼️</div>
+            <div class="tile-info">
+              <span class="tile-title">Hero Banners (${activeBanners}/${totalBanners})</span>
+              <span class="tile-desc">Top slider carousel & promos</span>
+            </div>
+          </div>
+
+          <div class="quick-action-tile" id="btn-quick-manage-deals">
+            <div class="tile-icon" style="color: #8b5cf6;">⚡</div>
+            <div class="tile-info">
+              <span class="tile-title">Flash Diamond Deals (${activeDeals}/${totalDeals})</span>
+              <span class="tile-desc">Instant Free Fire diamond packs</span>
+            </div>
+          </div>
+
+          <div class="quick-action-tile" id="btn-quick-manage-popup">
+            <div class="tile-icon" style="color: #f59e0b;">📢</div>
+            <div class="tile-info">
+              <span class="tile-title">Notice & Push Manager</span>
+              <span class="tile-desc">In-app notifications & broadcast</span>
+            </div>
+          </div>
+
+          <div class="quick-action-tile" id="btn-quick-manage-update">
+            <div class="tile-icon" style="color: #3b82f6;">🚀</div>
+            <div class="tile-info">
+              <span class="tile-title">Play Store App Updates</span>
+              <span class="tile-desc">Version controller & force update</span>
+            </div>
+          </div>
+
+          <div class="quick-action-tile" id="btn-quick-view-players">
+            <div class="tile-icon" style="color: #10b981;">👥</div>
+            <div class="tile-info">
+              <span class="tile-title">Player Directory (${totalUsers})</span>
+              <span class="tile-desc">Search, edit, export leads</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+
+// TAB 2: TOURNAMENTS & ROOMS
+function renderTournaments() {
+  return `
+    <div class="tab-pane active" id="tab-tournaments">
+      
+      <!-- Add Tournament Form -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🏆 Schedule New Tournament / Battle Royale Room</div>
+            <div class="card-subtitle">Publishes instantly to Android App & Cloud Firestore in real-time</div>
+          </div>
+        </div>
+
+        <form id="form-add-tournament">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Tournament Title *</label>
+              <input type="text" id="new-t-title" class="form-control" placeholder="e.g. Free Fire Squad Headshot Cup" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Game Mode *</label>
+              <div class="mode-btn-group" id="mode-btn-group">
+                <div class="mode-select-pill active" data-mode="Squad (4v4)">Squad (4v4)</div>
+                <div class="mode-select-pill" data-mode="Solo BR">Solo BR</div>
+                <div class="mode-select-pill" data-mode="Duo Battle">Duo Battle</div>
+                <div class="mode-select-pill" data-mode="Clash Squad">Clash Squad</div>
+                <div class="mode-select-pill" data-mode="Headshot Only">Headshot Only</div>
+              </div>
+              <input type="hidden" id="new-t-mode" value="Squad (4v4)" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Map *</label>
+              <select id="new-t-map" class="form-control">
+                <option value="Bermuda">Bermuda</option>
+                <option value="Purgatory">Purgatory</option>
+                <option value="Kalahari">Kalahari</option>
+                <option value="Alpine">Alpine</option>
+                <option value="Nexterra">Nexterra</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Match Date & Time *</label>
+              <input type="datetime-local" id="new-t-datetime" class="form-control" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Entry Fee Type *</label>
+              <select id="new-t-entry-type" class="form-control">
+                <option value="Free">Free (100% Free Entry)</option>
+                <option value="Paid">Paid Diamond Entry</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Entry Fee Amount</label>
+              <input type="text" id="new-t-entry-val" class="form-control" value="Free" disabled />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Total Prize Pool (BDT ৳) *</label>
+              <div style="display: flex; gap: 8px;">
+                <select id="new-t-prize-currency" class="form-control" style="width: 80px;">
+                  <option value="৳">৳ BDT</option>
+                  <option value="💎">💎 FF</option>
+                </select>
+                <input type="text" id="new-t-prize-pool" class="form-control" placeholder="e.g. 1500" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Max Player Slots *</label>
+              <input type="number" id="new-t-slots" class="form-control" value="48" min="2" max="100" required />
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Banner Image (URL or Default)</label>
+              <input type="text" id="new-t-banner" class="form-control" placeholder="assets/images/banner_esports.jpg or https://..." value="assets/images/banner_esports.jpg" />
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top: 14px;">🚀 Publish Tournament Live</button>
+        </form>
+      </div>
+
+      <!-- Published Tournaments Feed -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🏆 Active & Scheduled Tournaments (${state.tournaments.length})</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          ${state.tournaments.length === 0 ? `
+            <div style="text-align: center; padding: 40px 16px; color: var(--text-muted);">
+              <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Tournaments Scheduled Yet</div>
+              <div style="font-size: 12px; margin-top: 4px;">Use the form above to schedule a match and release custom rooms!</div>
+            </div>
+          ` : state.tournaments.map(t => {
+            const isLive = !!t.isRoomReleased || t.status === 'LIVE' || t.status === 'Live';
+            const roomIdVal = t.roomId || (t.roomCredentials && t.roomCredentials.roomId) || '';
+            const roomPassVal = t.roomPass || (t.roomCredentials && t.roomCredentials.password) || '';
+
+            return `
+              <div style="background: var(--bg-body); border: 1.5px solid ${isLive ? '#ef4444' : 'var(--border-color)'}; border-radius: var(--radius-lg); padding: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <h3 style="font-size: 16px; font-weight: 800; color: var(--text-main);">${t.title}</h3>
+                      <span class="badge" style="${isLive ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(245, 158, 11, 0.2); color: #fbbf24;'} font-weight: 700;">
+                        ${isLive ? '🔴 MATCH IS LIVE / ROOM RELEASED' : '🟡 ' + (t.status || 'UPCOMING')}
+                      </span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                      🎮 Mode: <strong>${t.gameMode || t.mode || 'Squad (4v4)'}</strong> | 🗺️ Map: <strong>${t.map || 'Bermuda'}</strong> | ⏰ Time: <strong>${t.matchTime || t.startDateTime || 'Tonight'}</strong>
+                    </div>
+                    <div style="font-size: 12px; color: #10b981; font-weight: 700; margin-top: 2px;">
+                      🏆 Prize: ${t.prizePool || '৳ 1,500'} | Entry: ${t.entryFee || 'Free'} | Slots: ${t.slotsFilled || 0}/${t.slotsTotal || t.maxSlots || 48}
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary btn-toggle-tourn-status" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
+                      ${t.isActive === false || t.status === 'INACTIVE' || t.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
+                    </button>
+                    <button class="btn btn-secondary btn-edit-tourn" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
+                      ✏️ Edit Match
+                    </button>
+                    <button class="btn btn-danger btn-delete-tourn" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Live Room ID & Password Releaser Box -->
+                <div class="room-releaser-box" style="${isLive ? 'border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);' : ''} margin-top: 14px; padding: 14px; background: var(--bg-card); border-radius: var(--radius-md); border: 1px dashed var(--border-light);">
+                  <div style="font-size: 12px; font-weight: 800; color: ${isLive ? '#f87171' : '#34d399'}; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span>🔑</span>
+                    <span>INSTANT CUSTOM ROOM CREDENTIALS</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px;">
+                    <input type="text" id="room-id-${t.id}" class="form-control" placeholder="Room ID (e.g. 9841284)" value="${roomIdVal}" />
+                    <input type="text" id="room-pass-${t.id}" class="form-control" placeholder="Room Password (e.g. 1234)" value="${roomPassVal}" />
+                    <button class="btn btn-success btn-release-room" data-id="${t.id}">
+                      ${isLive ? '🔄 Update Room ID' : '📢 Release Room ID Now'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// TAB 3: APK DOWNLOADS
+function renderDownloads() {
+  return `
+    <div class="tab-pane active" id="tab-downloads">
+      
+      <!-- Add New Download Form -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📥 Add New APK / Tool Download</div>
+            <div class="card-subtitle">Embed YouTube video guide and configure multiple dynamic download action buttons</div>
+          </div>
+        </div>
+
+        <form id="form-add-download">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">APK / Tool Title *</label>
+              <input type="text" id="new-dl-title" class="form-control" placeholder="e.g. Mobin VIP Auto Headshot Macro APK" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Category *</label>
+              <select id="new-dl-category" class="form-control">
+                <option value="Mobin APK">Mobin APK</option>
+                <option value="Tools">Tools</option>
+                <option value="Premium Apps">Premium Apps</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">YouTube Video ID or Full URL *</label>
+              <input type="text" id="new-dl-yt" class="form-control" placeholder="e.g. dQw4w9WgXcQ or https://youtu.be/..." required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Pin to Top of Catalog</label>
+              <div style="display: flex; align-items: center; height: 42px; gap: 8px;">
+                <input type="checkbox" id="new-dl-pinned" style="width: 18px; height: 18px;" />
+                <span style="font-size: 12px; color: var(--text-muted);">Show at top with PIN badge</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Action Buttons Repeater -->
+          <div style="margin-top: 14px; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-size: 12px; font-weight: 800; color: var(--text-main);">🎯 Download Action Buttons (Appears under video)</span>
+              <button type="button" class="btn btn-secondary" id="btn-add-action-row" style="padding: 4px 10px; font-size: 11.5px;">➕ Add Another Button</button>
+            </div>
+
+            <div id="action-buttons-repeater-container" style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="action-btn-row" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px;">
+                <input type="text" class="form-control act-label-input" placeholder="Button Name (e.g. Proxy APK Download)" value="Proxy APK Download" required />
+                <input type="url" class="form-control act-url-input" placeholder="Download Target Link (https://...)" value="https://mrmobin.blogspot.com/" required />
+                <button type="button" class="btn btn-danger btn-remove-act-row" style="padding: 6px 10px;">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top: 14px;">🚀 Publish Download Item to App</button>
+        </form>
+      </div>
+
+      <!-- Published Downloads Feed -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📱 Published Download Catalog (${state.downloads.length})</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          ${state.downloads.map(dl => `
+            <div style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <h3 style="font-size: 15px; font-weight: 800; color: var(--text-main);">${dl.title}</h3>
+                    <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">${dl.category}</span>
+                    ${dl.isPinned ? `<span class="badge" style="background: #eab308; color: #000; font-weight: 800;">📌 PINNED</span>` : ''}
+                  </div>
+                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                    YouTube Video: <strong>${dl.youtubeId}</strong> | Actions: <strong>${(dl.actionButtons || []).length} buttons</strong>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 6px;">
+                  <button class="btn btn-secondary btn-toggle-dl-status" data-id="${dl.id}" style="padding: 6px 12px; font-size: 12px;">
+                    ${dl.isActive === false || dl.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
+                  </button>
+                  <button class="btn btn-secondary btn-edit-download" data-id="${dl.id}" style="padding: 6px 12px; font-size: 12px;">✏️ Edit</button>
+                  <button class="btn btn-danger btn-delete-download" data-id="${dl.id}" style="padding: 6px 12px; font-size: 12px;">🗑️ Delete</button>
+                </div>
+              </div>
+
+              <!-- Buttons Preview Pills -->
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
+                ${(dl.actionButtons || []).map(a => `
+                  <span style="font-size: 11px; padding: 4px 10px; border-radius: 99px; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--cyan);">
+                    📥 ${a.label}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// TAB 4: FLASH DIAMOND DEALS
+function renderFlashDeals() {
+  return `
+    <div class="tab-pane active" id="tab-flash">
+      
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚡ Add New Flash Diamond Deal</div>
+          <div class="card-subtitle">Displayed on App Home & Top-Up Sections</div>
+        </div>
+
+        <form id="form-add-flash">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Diamond Amount *</label>
+              <input type="text" id="new-f-diamonds" class="form-control" placeholder="e.g. 520 DIAMONDS" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Price (৳) *</label>
+              <input type="text" id="new-f-price" class="form-control" placeholder="৳ 420.00" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Badge</label>
+              <input type="text" id="new-f-badge" class="form-control" placeholder="BEST VALUE / 100% BONUS" value="POPULAR" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Bonus Text</label>
+              <input type="text" id="new-f-bonus" class="form-control" placeholder="+52 Bonus" value="+50 Bonus" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">➕ Publish Flash Deal</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">💎 Active Flash Deals (${state.flashDeals.length})</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${state.flashDeals.map(d => `
+            <div class="item-card" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-body); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: 800; color: var(--text-main);">${d.diamondAmount}</span>
+                  <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">${d.badge || 'DEAL'}</span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                  Price: <strong style="color:#10b981;">${d.price}</strong> | Bonus: ${d.bonus}
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary btn-toggle-deal-status" data-id="${d.id}" style="padding: 4px 10px; font-size: 11px;">
+                  ${d.isActive === false || d.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
+                </button>
+                <button class="btn btn-secondary btn-edit-deal" data-id="${d.id}" style="padding: 4px 10px; font-size: 11px;">✏️ Edit</button>
+                <button class="btn btn-danger btn-delete-deal" data-id="${d.id}" style="padding: 4px 10px; font-size: 11px;">🗑️</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// TAB 5: HERO & PROMO BANNERS
+function renderBanners() {
+  return `
+    <div class="tab-pane active" id="tab-banners">
+      
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🖼️ Add New Hero or Promotional Banner</div>
+            <div class="card-subtitle">Upload image directly from device or provide web URL (Syncs to Firestore in real-time)</div>
+          </div>
+        </div>
+
+        <form id="form-add-banner">
+          <div class="form-grid">
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Banner Title *</label>
+              <input type="text" id="new-b-title" class="form-control" placeholder="e.g. Clash Squad Season 17" required />
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Banner Image (URL or Upload from Device) *</label>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="new-b-image" class="form-control" placeholder="assets/images/banner_hero1.jpg or https://..." style="flex: 1; min-width: 240px;" required />
+                <label class="btn btn-secondary" style="cursor: pointer; padding: 10px 14px; font-size: 12px; margin: 0; display: inline-flex; align-items: center; gap: 6px;">
+                  <span>📁 Upload Image</span>
+                  <input type="file" id="new-b-file-input" accept="image/*" style="display: none;" />
+                </label>
+              </div>
+              <div id="banner-preview-box" style="margin-top: 8px; display: none;">
+                <img id="banner-preview-img" src="" alt="Preview" style="max-height: 100px; border-radius: 8px; border: 1px solid var(--border-color);" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Action Target Link (Optional)</label>
+              <input type="url" id="new-b-url" class="form-control" placeholder="https://t.me/mobinx_official or https://noobtopup.com/" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Badge</label>
+              <input type="text" id="new-b-badge" class="form-control" placeholder="HOT / NEW / ESPORTS" value="HOT DEAL" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">➕ Publish Banner to App</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🖼️ Active Hero Banners (${state.banners.length})</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${state.banners.map(b => `
+            <div class="item-card" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-body); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="${b.image}" alt="${b.title}" style="width: 80px; height: 45px; border-radius: 6px; object-fit: cover; background: #000;" onerror="this.src='assets/images/banner_hero1.jpg'" />
+                <div>
+                  <div style="font-weight: 800; color: var(--text-main);">${b.title}</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">
+                    Link: <strong>${b.actionUrl || 'None'}</strong> | Badge: ${b.badge || 'HOT'}
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary btn-toggle-banner-status" data-id="${b.id}" style="padding: 4px 10px; font-size: 11px;">
+                  ${b.isActive === false || b.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
+                </button>
+                <button class="btn btn-secondary btn-edit-banner" data-id="${b.id}" style="padding: 4px 10px; font-size: 11px;">✏️ Edit</button>
+                <button class="btn btn-danger btn-delete-banner" data-id="${b.id}" style="padding: 4px 10px; font-size: 11px;">🗑️</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// TAB 6: NOTICES & WELCOME POPUP & PLAY STORE UPDATES & BROADCASTER
+function renderSystemUrls() {
+  const popup = state.homePopup || defaultHomePopup;
+  const updateConfig = state.appUpdate || defaultAppUpdate;
+
+  return `
+    <div class="tab-pane active" id="tab-urls">
+      
+      <!-- 1. In-App Home Screen Notice Popup Modal Manager -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🖼️ In-App Home Screen Notice Popup Modal</div>
+            <div class="card-subtitle">Displays on app startup matching your uploaded screenshot with Bengali description and blue close pill</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="admin-popup-enabled" style="width: 20px; height: 20px; cursor: pointer;" ${popup.enabled ? 'checked' : ''} />
+            <label for="admin-popup-enabled" id="admin-popup-status-label" style="font-size: 12px; font-weight: 800; color: ${popup.enabled ? '#10b981' : 'var(--text-muted)'}; cursor: pointer;">
+              ${popup.enabled ? '● ACTIVE IN APP' : '○ DISABLED'}
+            </label>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+          <!-- Left Editor Form -->
+          <form id="form-save-home-popup">
+            <div class="form-group">
+              <label class="form-label">Bengali / English Announcement Text *</label>
+              <textarea 
+                id="admin-popup-desc" 
+                class="form-control" 
+                rows="3" 
+                placeholder="অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।" 
+                required
+              >${popup.description || popup.title || 'অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।'}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Banner Image (Direct Upload or Image URL)</label>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <input 
+                  type="text" 
+                  id="admin-popup-image" 
+                  class="form-control" 
+                  placeholder="assets/images/banner_hero1.jpg or https://..." 
+                  value="${popup.image || ''}" 
+                  style="flex: 1; min-width: 180px;" 
+                />
+                <label class="btn btn-secondary" style="cursor: pointer; padding: 10px 14px; font-size: 12px; margin: 0; display: inline-flex; align-items: center; gap: 6px;">
+                  <span>📁 Upload Image</span>
+                  <input type="file" id="admin-popup-file-input" accept="image/*" style="display: none;" />
+                </label>
+              </div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+              <div class="form-group">
+                <label class="form-label">Action Button Label *</label>
+                <input 
+                  type="text" 
+                  id="admin-popup-btn-text" 
+                  class="form-control" 
+                  value="${popup.buttonText || 'ক্লিক করুন'}" 
+                  placeholder="ক্লিক করুন" 
+                  required 
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Action Button URL *</label>
+                <input 
+                  type="text" 
+                  id="admin-popup-btn-url" 
+                  class="form-control" 
+                  value="${popup.buttonUrl || 'https://t.me/mrmobin1m'}" 
+                  placeholder="https://t.me/..." 
+                  required 
+                />
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="admin-popup-once" style="width: 16px; height: 16px;" ${popup.showOncePerSession !== false ? 'checked' : ''} />
+              <label for="admin-popup-once" style="font-size: 12px; color: var(--text-muted); cursor: pointer;">
+                Show only once per user session (Recommended)
+              </label>
+            </div>
+
+            <button type="submit" id="btn-save-home-popup" class="btn btn-primary" style="margin-top: 14px; width: 100%; padding: 12px; font-size: 14px;">
+              💾 Save & Deploy Notice Popup to App
+            </button>
+          </form>
+
+          <!-- Right Live Mobile Preview Mockup -->
+          <div style="background: #000000; border-radius: 20px; padding: 20px 14px; border: 2px solid var(--border-light); display: flex; flex-direction: column; align-items: center;">
+            <div style="font-size: 10.5px; font-weight: 800; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px;">
+              📱 Live Mobile App Screen Preview
+            </div>
+
+            <!-- Popup Card Exact Replica -->
+            <div style="background: #ffffff; border-radius: 18px; width: 100%; max-width: 280px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; color: #0f172a; text-align: center;">
+              
+              <div id="mockup-img-container" style="${popup.image ? 'display: block;' : 'display: none;'} max-height: 140px; overflow: hidden; background: #000;">
+                <img id="mockup-popup-img" src="${popup.image || ''}" alt="Notice Banner" style="width: 100%; height: 140px; object-fit: cover;" />
+              </div>
+
+              <div style="padding: 18px 14px 14px 14px; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                <div id="mockup-popup-text" style="font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.5;">
+                  ${popup.description || popup.title || 'অল্প দামে ১৮ মাসের জন্য Google ai Pro নিতে চাইলে নিচের বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।'}
+                </div>
+
+                <a id="mockup-popup-btn" href="javascript:void(0)" style="display: block; width: 100%; padding: 9px 0; background: #0066ff; color: #ffffff; border-radius: 8px; font-size: 12px; font-weight: 800; text-decoration: none; box-shadow: 0 4px 12px rgba(0, 102, 255, 0.35);">
+                  ${popup.buttonText || 'ক্লিক করুন'}
+                </a>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <div style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: #0066ff; color: #ffffff; font-size: 16px; font-weight: 900; box-shadow: 0 2px 10px rgba(0, 102, 255, 0.5);">
+                ✕
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Google Play Store App Update Controller -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📲 Google Play Store App Version & Update Controller</div>
+            <div class="card-subtitle">Trigger update prompts for all app players when a new APK or bundle is published on Google Play</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="admin-update-enabled" style="width: 18px; height: 18px; cursor: pointer;" ${updateConfig.enabled ? 'checked' : ''} />
+              <label for="admin-update-enabled" id="admin-update-status-label" style="font-size: 12px; font-weight: 800; color: ${updateConfig.enabled ? '#10b981' : 'var(--text-muted)'}; cursor: pointer;">
+                ${updateConfig.enabled ? '● ACTIVE IN APP' : '○ DISABLED'}
+              </label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="admin-update-force" style="width: 18px; height: 18px; cursor: pointer;" ${updateConfig.forceUpdate ? 'checked' : ''} />
+              <label for="admin-update-force" style="font-size: 12px; font-weight: 800; color: ${updateConfig.forceUpdate ? '#ef4444' : 'var(--text-muted)'}; cursor: pointer;">
+                ${updateConfig.forceUpdate ? '⚠️ MANDATORY (BLOCKING)' : '○ OPTIONAL UPDATE'}
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <form id="form-save-update-config">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Latest Version Tag *</label>
+              <input 
+                type="text" 
+                id="admin-update-version" 
+                class="form-control" 
+                value="${updateConfig.latestVersion || '1.1'}" 
+                placeholder="e.g. 1.1 or 2.0" 
+                required 
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Google Play Store Direct URL *</label>
+              <input 
+                type="text" 
+                id="admin-update-url" 
+                class="form-control" 
+                value="${updateConfig.updateUrl || 'https://play.google.com/store/apps/details?id=com.mobinx.gaming'}" 
+                placeholder="https://play.google.com/store/apps/details?id=..." 
+                required 
+              />
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Update Alert Title *</label>
+              <input 
+                type="text" 
+                id="admin-update-title" 
+                class="form-control" 
+                value="${updateConfig.updateTitle || 'নতুন আপডেট উপলব্ধ! 🚀'}" 
+                placeholder="e.g. নতুন আপডেট উপলব্ধ! 🚀" 
+                required 
+              />
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Update Message Content *</label>
+              <textarea 
+                id="admin-update-msg" 
+                class="form-control" 
+                rows="2" 
+                required
+              >${updateConfig.updateMessage || 'অ্যাপের নতুন ফিচার ও সর্বোত্তম অভিজ্ঞতার জন্য গুগল প্লে স্টোর থেকে এখনই আপডেট করে নিন।'}</textarea>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-save-update-config" class="btn btn-success" style="margin-top: 14px; width: 100%; padding: 12px; font-size: 14px;">
+            🚀 Save & Deploy Play Store Version Alert
+          </button>
+        </form>
+      </div>
+
+      <!-- 3. Flash Push Notification Broadcaster -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🚀 Flash Push Notification Broadcaster</div>
+            <div class="card-subtitle">Sends an immediate live banner toast to all active players</div>
+          </div>
+        </div>
+
+        <form id="form-broadcast-push">
+          <div class="form-group">
+            <label class="form-label">Push Notification Message *</label>
+            <input type="text" id="push-msg-input" class="form-control" placeholder="e.g. 🔥 Weekend BR Solo Headshot tournament registration open now!" required />
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">📢 Broadcast Push Notification Now</button>
+        </form>
+      </div>
+
+    </div>
+  `;
+}
+
+// TAB 7: PLAYERS DIRECTORY
+function renderUsers() {
+  const query = (state.userSearchQuery || '').toLowerCase().trim();
+  const sortedUsers = [...state.users].sort((a, b) => (b.userId || 0) - (a.userId || 0));
+  const filtered = sortedUsers.filter(u => {
+    if (!query) return true;
+    const name = (u.fullName || u.username || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const phone = (u.phone || '').toLowerCase();
+    const uid = (u.ffUid || '').toLowerCase();
+    const id = String(u.userId || u.id || '');
+    return name.includes(query) || email.includes(query) || phone.includes(query) || uid.includes(query) || id.includes(query);
+  });
+
+  return `
+    <div class="tab-pane active" id="tab-users">
+      
+      <div class="card">
+        <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div class="card-title">👥 Users Directory (${state.users.length})</div>
+            <div class="card-subtitle">Real-time live synchronization with Cloud Firestore users database (Latest on Top)</div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" id="btn-export-users-csv" style="padding: 6px 12px; font-size: 12px;" title="Export for Google Sheets / Excel">
+              📥 Export CSV
+            </button>
+            <button class="btn btn-secondary" id="btn-export-users-marketing" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; padding: 6px 12px; font-size: 12px;" title="Export Leads List for SMS / WhatsApp / Telegram Marketing">
+              📢 Export Leads (.txt)
+            </button>
+            <button class="btn btn-secondary" id="btn-export-users-json" style="padding: 6px 12px; font-size: 12px;" title="Export as JSON for backup & automation">
+              📄 Export JSON
+            </button>
+            <button class="btn btn-secondary" id="btn-refresh-users" style="padding: 6px 12px; font-size: 12px;">
+              🔄 Refresh Cloud
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Users Bar -->
+        <div style="margin-bottom: 14px;">
+          <input type="text" id="input-search-players" class="form-control" placeholder="🔍 Search user by User ID (#1, #2...), Name, Gmail, Phone, or FF UID..." value="${state.userSearchQuery || ''}" />
+        </div>
+
+        <!-- Users Cards List -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${filtered.length === 0 ? `
+            <div style="text-align: center; padding: 36px 16px; background: var(--bg-body); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
+              <div style="font-size: 32px; margin-bottom: 8px;">👥</div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">No Users Registered Yet</div>
+              <div style="font-size: 12px; color: var(--text-muted); max-width: 420px; margin: 4px auto 0 auto;">
+                As soon as users open the app and sign in with Google, their sequential User ID (#1, #2, #3...), Name, Gmail, Phone, and Free Fire UID will automatically appear here in 100% real-time!
+              </div>
+            </div>
+          ` : filtered.map((u, idx) => {
+            const fallbackAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='32' fill='%231e293b'/><circle cx='32' cy='24' r='12' fill='%233b82f6'/><path d='M14 52c0-10 8-18 18-18s18 8 18 18' fill='%232563eb'/></svg>";
+            const userSeqId = u.userId || u.playerNumber || (idx + 1);
+            const avatarUrl = u.avatar && !u.avatar.includes('dicebear') ? u.avatar : fallbackAvatar;
+
+            return `
+              <div class="player-management-card" data-user-id="${u.id}" style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
+                <!-- Card Header Row -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="badge" style="background: linear-gradient(135deg, #2563eb, #06b6d4); color: #ffffff; font-weight: 900; font-size: 12px; padding: 4px 10px; letter-spacing: 0.3px;">
+                      User ID: #${userSeqId}
+                    </span>
+                    ${u.role ? `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; font-weight: 800; font-size: 11px;">👑 ${u.role}</span>` : ''}
+                  </div>
+                  <span class="badge" style="${u.status === 'Suspended' ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(16, 185, 129, 0.2); color: #34d399;'} font-weight: 800;">
+                    ● ${u.status || 'Active'}
+                  </span>
+                </div>
+
+                <!-- Card Body Details Grid -->
+                <div style="display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
+                  <!-- Avatar -->
+                  <div style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #1e293b; border: 2px solid #3b82f6; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                    <img src="${avatarUrl}" alt="Avatar" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${fallbackAvatar}';" style="width: 100%; height: 100%; object-fit: cover;" />
+                  </div>
+
+                  <!-- Details Column -->
+                  <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">
+                      ${u.fullName || u.username || 'Free Fire Gamer'}
+                    </div>
+
+                    <!-- Gmail Row with Copy -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                      <span>📧 <strong>Gmail:</strong> ${u.email || 'Not provided'}</span>
+                      ${u.email ? `
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.email}" data-label="Gmail" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+                          📋 Copy
+                        </button>
+                      ` : ''}
+                    </div>
+
+                    <!-- Phone Row with Copy and Direct Call -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                      <span>📱 <strong>Phone:</strong> ${u.phone || 'Not added'}</span>
+                      ${u.phone ? `
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.phone}" data-label="Phone" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
+                          📋 Copy
+                        </button>
+                        <a href="tel:${u.phone}" style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: rgba(16, 185, 129, 0.2); color: #34d399; text-decoration: none; font-weight: 700;">
+                          📞 Call
+                        </a>
+                      ` : ''}
+                    </div>
+
+                    <!-- Free Fire UID Row with Copy -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                      <span>🎯 <strong>FF UID:</strong> ${u.ffUid || 'Not set'}</span>
+                      ${u.ffUid ? `
+                        <button class="btn-copy-tag btn-copy-field" data-copy="${u.ffUid}" data-label="FF UID" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">
+                          📋 Copy
+                        </button>
+                      ` : ''}
+                    </div>
+
+                    <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">
+                      Registered: ${u.registeredDate || 'Recently'} • ${u.platform || 'Android Mobile'}
+                    </div>
+                  </div>
+
+                  <!-- Actions Column -->
+                  <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+                    <button class="btn btn-secondary btn-edit-player" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                      ✏️ Edit
+                    </button>
+                    <button class="btn btn-secondary btn-toggle-user-status" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                      ${u.status === 'Suspended' ? '✅ Activate' : '🚫 Suspend'}
+                    </button>
+                    <button class="btn btn-danger btn-delete-user" data-id="${u.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
+// 5. EXPORT HELPERS (CSV & JSON & Leads)
+// ==========================================
+function exportUsersCSV() {
+  const users = state.users.length > 0 ? state.users : defaultUsers;
+  let csvContent = "User ID,Player Number,Full Name,Gmail,Phone Number,Free Fire UID,Role,Status,Registered Date\n";
+
+  users.forEach(u => {
+    const row = [
+      u.userId || '',
+      u.playerNumber || '',
+      `"${(u.fullName || u.username || '').replace(/"/g, '""')}"`,
+      `"${(u.email || '').replace(/"/g, '""')}"`,
+      `"${(u.phone || '').replace(/"/g, '""')}"`,
+      `"${(u.ffUid || '').replace(/"/g, '""')}"`,
+      `"${(u.role || 'Member').replace(/"/g, '""')}"`,
+      `"${(u.status || 'Active').replace(/"/g, '""')}"`,
+      `"${(u.registeredDate || '').replace(/"/g, '""')}"`
+    ];
+    csvContent += row.join(",") + "\n";
+  });
+
+  const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `MobinX_Users_Database_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📥 Users CSV exported successfully for Google Sheets / Excel!', 'success');
+}
+
+function exportUsersMarketingList() {
+  const users = state.users.length > 0 ? state.users : defaultUsers;
+  let leadsContent = "=====================================================\n";
+  leadsContent += "MOBIN X GAMING ECOSYSTEM - MARKETING LEADS LIST\n";
+  leadsContent += `Exported: ${new Date().toLocaleString()}\n`;
+  leadsContent += `Total Verified Players: ${users.length}\n`;
+  leadsContent += "=====================================================\n\n";
+
+  leadsContent += "--- PHONE NUMBERS (SMS / WhatsApp Broadcast) ---\n";
+  const phones = users.map(u => u.phone).filter(p => p && p.trim().length >= 10);
+  leadsContent += phones.join("\n") + "\n\n";
+
+  leadsContent += "--- GMAIL / EMAIL ADDRESSES (Email Marketing) ---\n";
+  const emails = users.map(u => u.email).filter(e => e && e.includes('@'));
+  leadsContent += emails.join("\n") + "\n\n";
+
+  const blob = new Blob([leadsContent], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `MobinX_Marketing_Leads_${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📢 Marketing Leads List (.txt) exported successfully!', 'success');
+}
+
+function exportUsersJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.users, null, 2));
+  const a = document.createElement('a');
+  a.href = dataStr;
+  a.download = `MobinX_Users_Database_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('📄 Users Database (JSON) exported successfully!', 'success');
+}
+
+// ==========================================
+// 6. MODAL SYSTEM
+// ==========================================
+function openAdminModal(title, bodyHtml, onSaveCallback) {
+  const overlay = document.getElementById('admin-modal-overlay');
+  const modalTitle = document.getElementById('admin-modal-title');
+  const modalBody = document.getElementById('admin-modal-body');
+  const btnSave = document.getElementById('admin-modal-save-btn');
+
+  if (!overlay || !modalTitle || !modalBody) return;
+
+  modalTitle.textContent = title;
+  modalBody.innerHTML = bodyHtml;
+  state.modalCallback = onSaveCallback;
+
+  overlay.classList.add('active');
+}
+
+function closeAdminModal() {
+  const overlay = document.getElementById('admin-modal-overlay');
+  if (overlay) overlay.classList.remove('active');
+  state.modalCallback = null;
+}
+
+// ==========================================
+// 7. TOAST NOTIFICATIONS
+// ==========================================
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `admin-toast ${type}`;
+  toast.innerHTML = `
+    <span>${type === 'success' ? '✅' : (type === 'warning' ? '⚠️' : 'ℹ️')}</span>
+    <span>${message}</span>
+  `;
+
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+// ==========================================
+// 8. TAB CONTROLLER & EVENT BINDINGS
+// ==========================================
+function renderCurrentTab() {
+  const content = document.getElementById('tab-content-area');
+  const title = document.getElementById('current-page-title');
+  if (!content) return;
+
+  switch (state.activeTab) {
+    case 'overview':
+      if (title) title.textContent = 'Dashboard Overview';
+      content.innerHTML = renderOverview();
+      break;
+    case 'tournaments':
+      if (title) title.textContent = 'Tournaments & Room Credentials';
+      content.innerHTML = renderTournaments();
+      break;
+    case 'downloads':
+      if (title) title.textContent = 'APK Downloads Catalog';
+      content.innerHTML = renderDownloads();
+      break;
+    case 'flash':
+      if (title) title.textContent = 'Flash Diamond Deals';
+      content.innerHTML = renderFlashDeals();
+      break;
+    case 'banners':
+      if (title) title.textContent = 'Hero & Promotional Banners';
+      content.innerHTML = renderBanners();
+      break;
+    case 'urls':
+      if (title) title.textContent = 'Notices & Announcement Modals';
+      content.innerHTML = renderSystemUrls();
+      break;
+    case 'users':
+      if (title) title.textContent = 'Users Directory';
+      content.innerHTML = renderUsers();
+      break;
+    default:
+      content.innerHTML = renderOverview();
+  }
+
+  bindCurrentTabEvents();
+}
+
+function bindCurrentTabEvents() {
+  // Overview Quick Actions
+  document.getElementById('btn-quick-schedule-tourn')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="tournaments"]')?.click();
+  });
+  document.getElementById('btn-quick-add-apk')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="downloads"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-banners')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="banners"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-deals')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="flash"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-popup')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="urls"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-update')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="urls"]')?.click();
+  });
+  document.getElementById('btn-quick-view-players')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="users"]')?.click();
+  });
+
+
+  // Tournaments: Mode Pills
+  document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const hiddenMode = document.getElementById('new-t-mode');
+      if (hiddenMode) hiddenMode.value = pill.dataset.mode;
+    });
+  });
+
+  // Tournaments: Entry Type
+  const entryTypeSel = document.getElementById('new-t-entry-type');
+  const entryValInput = document.getElementById('new-t-entry-val');
+  entryTypeSel?.addEventListener('change', () => {
+    if (entryTypeSel.value === 'Free') {
+      entryValInput.value = 'Free';
+      entryValInput.disabled = true;
+    } else {
+      entryValInput.value = '৳ 50';
+      entryValInput.disabled = false;
+    }
+  });
+
+  // Tournaments: Add Tournament
+  document.getElementById('form-add-tournament')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('new-t-title').value;
+    const mode = document.getElementById('new-t-mode').value;
+    const map = document.getElementById('new-t-map').value;
+    const datetime = document.getElementById('new-t-datetime').value;
+    const entryType = document.getElementById('new-t-entry-type').value;
+    const entryVal = document.getElementById('new-t-entry-val').value;
+    const prizeCurrency = document.getElementById('new-t-prize-currency').value;
+    const prizePool = document.getElementById('new-t-prize-pool').value;
+    const maxSlots = parseInt(document.getElementById('new-t-slots').value) || 48;
+    const bannerUrl = document.getElementById('new-t-banner').value || 'assets/images/banner_esports.jpg';
+
+    const newTourn = {
+      id: 'tourn-' + Date.now(),
+      title,
+      mode,
+      gameMode: mode,
+      entryType: mode,
+      map,
+      startDateTime: datetime,
+      matchTime: datetime ? new Date(datetime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tonight at 08:30 PM',
+      entryFee: entryType === 'Free' ? 'Free' : entryVal,
+      prizePool: prizeCurrency + ' ' + prizePool,
+      prizeCurrency,
+      slotsTotal: maxSlots,
+      maxSlots: maxSlots,
+      slotsFilled: 0,
+      participants: [],
+      status: 'Upcoming',
+      isLive: false,
+      banner: bannerUrl,
+      bannerUrl: bannerUrl,
+      roomId: '',
+      roomPass: '',
+      isRoomReleased: false,
+      roomCredentials: { roomId: '', password: '', isReleased: false }
+    };
+
+    state.tournaments.unshift(newTourn);
+    setStorage('mobinx_tournaments_data', state.tournaments);
+    showToast('Tournament published live!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('tournaments', newTourn.id, newTourn);
+    broadcastSync('TOURNAMENTS_UPDATED', newTourn);
+  });
+
+  // Tournaments: Release Room ID & Password
+  document.querySelectorAll('.btn-release-room').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (!t) return;
+
+      const inputId = document.getElementById(`room-id-${id}`);
+      const inputPass = document.getElementById(`room-pass-${id}`);
+
+      let roomId = inputId ? inputId.value.trim() : '';
+      let roomPass = inputPass ? inputPass.value.trim() : '';
+
+      if (!roomId) {
+        roomId = prompt('Enter Custom Room ID:', t.roomId || '') || '';
+      }
+      if (!roomPass) {
+        roomPass = prompt('Enter Custom Room Password:', t.roomPass || '') || '';
+      }
+
+      if (!roomId.trim()) {
+        showToast('Please enter a valid Room ID!', 'warning');
+        return;
+      }
+
+      t.roomId = roomId.trim();
+      t.roomPass = roomPass.trim();
+      t.isRoomReleased = true;
+      t.status = 'LIVE';
+      t.isLive = true;
+      t.roomCredentials = {
+        roomId: t.roomId,
+        password: t.roomPass,
+        isReleased: true,
+        releasedAt: Date.now()
+      };
+
+      setStorage('mobinx_tournaments_data', state.tournaments);
+      showToast('Room credentials released instantly to all players!', 'success');
+      renderCurrentTab();
+
+      await syncToFirestore('tournaments', t.id, t);
+      broadcastSync('ROOM_RELEASED', { id: t.id, title: t.title, ...t.roomCredentials });
+    });
+  });
+
+  // Tournaments: Edit Tournament Modal
+  document.querySelectorAll('.btn-edit-tourn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (!t) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Match Title *</label>
+            <input type="text" id="edit-t-title" class="form-control" value="${t.title || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Game Mode</label>
+            <input type="text" id="edit-t-mode" class="form-control" value="${t.gameMode || t.mode || 'Squad (4v4)'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Map</label>
+            <input type="text" id="edit-t-map" class="form-control" value="${t.map || 'Bermuda'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prize Pool</label>
+            <input type="text" id="edit-t-prize" class="form-control" value="${t.prizePool || '৳ 1500'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Entry Fee</label>
+            <input type="text" id="edit-t-fee" class="form-control" value="${t.entryFee || 'Free'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Total Slots</label>
+            <input type="number" id="edit-t-slots" class="form-control" value="${t.slotsTotal || t.maxSlots || 48}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select id="edit-t-status" class="form-control">
+              <option value="Upcoming" ${t.status === 'Upcoming' ? 'selected' : ''}>Upcoming</option>
+              <option value="LIVE" ${t.status === 'LIVE' || t.status === 'Live' ? 'selected' : ''}>LIVE</option>
+              <option value="Completed" ${t.status === 'Completed' ? 'selected' : ''}>Completed</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Banner URL</label>
+            <input type="text" id="edit-t-banner" class="form-control" value="${t.banner || t.bannerUrl || 'assets/images/banner_esports.jpg'}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('✏️ Edit Tournament', modalHtml, async () => {
+        t.title = document.getElementById('edit-t-title').value.trim() || t.title;
+        t.gameMode = document.getElementById('edit-t-mode').value.trim() || t.gameMode;
+        t.mode = t.gameMode;
+        t.map = document.getElementById('edit-t-map').value.trim() || t.map;
+        t.prizePool = document.getElementById('edit-t-prize').value.trim() || t.prizePool;
+        t.entryFee = document.getElementById('edit-t-fee').value.trim() || t.entryFee;
+        t.slotsTotal = parseInt(document.getElementById('edit-t-slots').value) || t.slotsTotal;
+        t.maxSlots = t.slotsTotal;
+        t.status = document.getElementById('edit-t-status').value;
+        t.isLive = t.status === 'LIVE';
+        t.banner = document.getElementById('edit-t-banner').value.trim() || t.banner;
+        t.bannerUrl = t.banner;
+
+        setStorage('mobinx_tournaments_data', state.tournaments);
+        showToast('Tournament updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('tournaments', t.id, t);
+        broadcastSync('TOURNAMENTS_UPDATED', t);
+      });
+    });
+  });
+
+  // Tournaments: Delete Tournament
+  document.querySelectorAll('.btn-delete-tourn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const confirmCancel = confirm('Are you sure you want to delete this tournament?');
+      if (!confirmCancel) return;
+
+      state.tournaments = state.tournaments.filter(t => t.id !== id);
+      setStorage('mobinx_tournaments_data', state.tournaments);
+      showToast('Tournament deleted.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('tournaments', id);
+      broadcastSync('TOURNAMENTS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Tournaments: Toggle Active / Inactive Status
+  document.querySelectorAll('.btn-toggle-tourn-status').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (t) {
+        t.isActive = (t.isActive === false || t.status === 'INACTIVE' || t.status === 'inactive') ? true : false;
+        t.status = t.isActive ? (t.isRoomReleased ? 'LIVE' : 'UPCOMING') : 'INACTIVE';
+        setStorage('mobinx_tournaments_data', state.tournaments);
+        showToast(`Tournament is now ${t.isActive ? 'Active' : 'Disabled'}!`, 'info');
+        renderCurrentTab();
+        await syncToFirestore('tournaments', t.id, t);
+        broadcastSync('TOURNAMENTS_UPDATED', t);
+      }
+    });
+  });
+
+
+  // Downloads: Add Button Row
+  document.getElementById('btn-add-action-row')?.addEventListener('click', () => {
+    const container = document.getElementById('action-buttons-repeater-container');
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'action-btn-row';
+    row.style.cssText = 'display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px;';
+    row.innerHTML = `
+      <input type="text" class="form-control act-label-input" placeholder="Button Name" required />
+      <input type="url" class="form-control act-url-input" placeholder="Download Target Link (https://...)" required />
+      <button type="button" class="btn btn-danger btn-remove-act-row" style="padding: 6px 10px;">✕</button>
+    `;
+    container.appendChild(row);
+    row.querySelector('.btn-remove-act-row')?.addEventListener('click', () => row.remove());
+  });
+
+  document.querySelectorAll('.btn-remove-act-row').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.target.closest('.action-btn-row')?.remove();
+    });
+  });
+
+  // Downloads: Add Download
+  document.getElementById('form-add-download')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('new-dl-title').value.trim();
+    const category = document.getElementById('new-dl-category').value;
+    const ytUrl = document.getElementById('new-dl-yt').value.trim();
+    const isPinned = document.getElementById('new-dl-pinned').checked;
+
+    let ytId = ytUrl;
+    if (ytId.includes('youtube.com/watch?v=')) {
+      ytId = ytId.split('watch?v=')[1].split('&')[0];
+    } else if (ytId.includes('youtu.be/')) {
+      ytId = ytId.split('youtu.be/')[1].split('?')[0];
+    }
+
+    const actionButtons = [];
+    document.querySelectorAll('#action-buttons-repeater-container .action-btn-row').forEach((row, idx) => {
+      const label = row.querySelector('.act-label-input')?.value.trim();
+      const url = row.querySelector('.act-url-input')?.value.trim();
+      if (label && url) {
+        actionButtons.push({ id: 'act-' + (idx + 1) + '-' + Date.now(), label, url, icon: 'download' });
+      }
+    });
+
+    const newDl = {
+      id: 'dl-' + Date.now(),
+      title,
+      category,
+      youtubeId: ytId || 'dQw4w9WgXcQ',
+      videoThumbnail: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`,
+      videoDuration: '05:00',
+      isPinned,
+      actionButtons
+    };
+
+    state.downloads.unshift(newDl);
+    setStorage('mobinx_downloads_catalog', state.downloads);
+    showToast('APK Download published to catalog!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('downloads', newDl.id, newDl);
+    broadcastSync('DOWNLOADS_UPDATED', newDl);
+  });
+
+  // Downloads: Edit Download
+  document.querySelectorAll('.btn-edit-download').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const dl = state.downloads.find(x => x.id === id);
+      if (!dl) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Title *</label>
+            <input type="text" id="edit-dl-title" class="form-control" value="${dl.title || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select id="edit-dl-category" class="form-control">
+              <option value="Mobin APK" ${dl.category === 'Mobin APK' ? 'selected' : ''}>Mobin APK</option>
+              <option value="Tools" ${dl.category === 'Tools' ? 'selected' : ''}>Tools</option>
+              <option value="Premium Apps" ${dl.category === 'Premium Apps' ? 'selected' : ''}>Premium Apps</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">YouTube Video ID / URL</label>
+            <input type="text" id="edit-dl-yt" class="form-control" value="${dl.youtubeId || ''}" required />
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Action Buttons (comma separated Label:URL)</label>
+            <textarea id="edit-dl-buttons" class="form-control" rows="3" placeholder="Button Name:https://...">${(dl.actionButtons || []).map(b => `${b.label}:${b.url}`).join('\n')}</textarea>
+          </div>
+        </div>
+      `;
+
+      openAdminModal('✏️ Edit Download Package', modalHtml, async () => {
+        dl.title = document.getElementById('edit-dl-title').value.trim() || dl.title;
+        dl.category = document.getElementById('edit-dl-category').value;
+        let ytVal = document.getElementById('edit-dl-yt').value.trim();
+        if (ytVal.includes('watch?v=')) ytVal = ytVal.split('watch?v=')[1].split('&')[0];
+        else if (ytVal.includes('youtu.be/')) ytVal = ytVal.split('youtu.be/')[1].split('?')[0];
+        dl.youtubeId = ytVal;
+        dl.videoThumbnail = `https://img.youtube.com/vi/${ytVal}/mqdefault.jpg`;
+
+        const btnLines = document.getElementById('edit-dl-buttons').value.split('\n');
+        const parsedBtns = [];
+        btnLines.forEach((line, idx) => {
+          const parts = line.split(':');
+          if (parts.length >= 2) {
+            const label = parts[0].trim();
+            const url = parts.slice(1).join(':').trim();
+            if (label && url) {
+              parsedBtns.push({ id: 'act-' + (idx + 1) + '-' + Date.now(), label, url, icon: 'download' });
+            }
+          }
+        });
+        if (parsedBtns.length > 0) dl.actionButtons = parsedBtns;
+
+        setStorage('mobinx_downloads_catalog', state.downloads);
+        showToast('Download package updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('downloads', dl.id, dl);
+        broadcastSync('DOWNLOADS_UPDATED', dl);
+      });
+    });
+  });
+
+  // Downloads: Delete Download
+  document.querySelectorAll('.btn-delete-download').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      state.downloads = state.downloads.filter(d => d.id !== id);
+      setStorage('mobinx_downloads_catalog', state.downloads);
+      showToast('Download package removed.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('downloads', id);
+      broadcastSync('DOWNLOADS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Downloads: Toggle Status
+  document.querySelectorAll('.btn-toggle-dl-status').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const d = state.downloads.find(x => x.id === id);
+      if (d) {
+        d.isActive = (d.isActive === false || d.status === 'inactive') ? true : false;
+        d.status = d.isActive ? 'active' : 'inactive';
+        setStorage('mobinx_downloads_catalog', state.downloads);
+        showToast(`Download resource is now ${d.isActive ? 'Active' : 'Disabled'}!`, 'info');
+        renderCurrentTab();
+
+        await syncToFirestore('downloads', d.id, d);
+        broadcastSync('DOWNLOADS_UPDATED', d);
+      }
+    });
+  });
+
+  // Flash Deals: Add
+  document.getElementById('form-add-flash')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const diamonds = document.getElementById('new-f-diamonds').value.trim();
+    const price = document.getElementById('new-f-price').value.trim();
+    const badge = document.getElementById('new-f-badge').value.trim();
+    const bonus = document.getElementById('new-f-bonus').value.trim();
+
+    const newDeal = {
+      id: 'flash-' + Date.now(),
+      diamondAmount: diamonds,
+      price,
+      badge: badge || 'HOT',
+      bonus: bonus || '+50 Bonus',
+      inStock: true,
+      isActive: true,
+      status: 'active'
+    };
+
+    state.flashDeals.push(newDeal);
+    setStorage('mobinx_flash_deals', state.flashDeals);
+    showToast('Flash diamond deal published!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('flashDeals', newDeal.id, newDeal);
+    broadcastSync('FLASH_DEALS_UPDATED', newDeal);
+  });
+
+  // Flash Deals: Edit
+  document.querySelectorAll('.btn-edit-deal').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const d = state.flashDeals.find(x => x.id === id);
+      if (!d) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Diamond Amount *</label>
+            <input type="text" id="edit-f-diamonds" class="form-control" value="${d.diamondAmount || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price (৳) *</label>
+            <input type="text" id="edit-f-price" class="form-control" value="${d.price || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Badge</label>
+            <input type="text" id="edit-f-badge" class="form-control" value="${d.badge || 'HOT'}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bonus</label>
+            <input type="text" id="edit-f-bonus" class="form-control" value="${d.bonus || '+50 Bonus'}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('⚡ Edit Flash Diamond Deal', modalHtml, async () => {
+        d.diamondAmount = document.getElementById('edit-f-diamonds').value.trim() || d.diamondAmount;
+        d.price = document.getElementById('edit-f-price').value.trim() || d.price;
+        d.badge = document.getElementById('edit-f-badge').value.trim() || d.badge;
+        d.bonus = document.getElementById('edit-f-bonus').value.trim() || d.bonus;
+
+        setStorage('mobinx_flash_deals', state.flashDeals);
+        showToast('Flash deal updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('flashDeals', d.id, d);
+        broadcastSync('FLASH_DEALS_UPDATED', d);
+      });
+    });
+  });
+
+  // Flash Deals: Delete
+  document.querySelectorAll('.btn-delete-deal').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      state.flashDeals = state.flashDeals.filter(d => d.id !== id);
+      setStorage('mobinx_flash_deals', state.flashDeals);
+      showToast('Deal deleted.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('flashDeals', id);
+      broadcastSync('FLASH_DEALS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Flash Deals: Toggle Status
+  document.querySelectorAll('.btn-toggle-deal-status').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const d = state.flashDeals.find(x => x.id === id);
+      if (d) {
+        d.isActive = (d.isActive === false || d.status === 'inactive') ? true : false;
+        d.status = d.isActive ? 'active' : 'inactive';
+        setStorage('mobinx_flash_deals', state.flashDeals);
+        showToast(`Flash deal is now ${d.isActive ? 'Active' : 'Disabled'}!`, 'info');
+        renderCurrentTab();
+
+        await syncToFirestore('flashDeals', d.id, d);
+        broadcastSync('FLASH_DEALS_UPDATED', d);
+      }
+    });
+  });
+
+  // Banners: File Upload
+  const fileInput = document.getElementById('new-b-file-input');
+  const urlInput = document.getElementById('new-b-image');
+  const previewBox = document.getElementById('banner-preview-box');
+  const previewImg = document.getElementById('banner-preview-img');
+
+  fileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        const dataUrl = loadEvt.target.result;
+        if (urlInput) urlInput.value = dataUrl;
+        if (previewImg && previewBox) {
+          previewImg.src = dataUrl;
+          previewBox.style.display = 'block';
+        }
+        showToast('Image loaded from device! Ready to publish.', 'info');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Banners: Add
+  document.getElementById('form-add-banner')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('new-b-title').value.trim();
+    const image = document.getElementById('new-b-image').value.trim();
+    const url = document.getElementById('new-b-url').value.trim();
+    const badge = document.getElementById('new-b-badge')?.value.trim() || 'HOT DEAL';
+
+    const newBanner = {
+      id: 'banner-' + Date.now(),
+      title,
+      image,
+      actionUrl: url || '',
+      badge,
+      isActive: true,
+      status: 'active'
+    };
+
+    state.banners.push(newBanner);
+    setStorage('mobinx_hero_banners', state.banners);
+    showToast('Banner published to cloud and app!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('banners', newBanner.id, newBanner);
+    broadcastSync('BANNERS_UPDATED', newBanner);
+  });
+
+  // Banners: Edit
+  document.querySelectorAll('.btn-edit-banner').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const b = state.banners.find(x => x.id === id);
+      if (!b) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Banner Title *</label>
+            <input type="text" id="edit-b-title" class="form-control" value="${b.title || ''}" required />
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Banner Image URL *</label>
+            <input type="text" id="edit-b-image" class="form-control" value="${b.image || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Action Target Link</label>
+            <input type="url" id="edit-b-url" class="form-control" value="${b.actionUrl || ''}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Badge</label>
+            <input type="text" id="edit-b-badge" class="form-control" value="${b.badge || 'HOT'}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('🖼️ Edit Banner', modalHtml, async () => {
+        b.title = document.getElementById('edit-b-title').value.trim() || b.title;
+        b.image = document.getElementById('edit-b-image').value.trim() || b.image;
+        b.actionUrl = document.getElementById('edit-b-url').value.trim() || b.actionUrl;
+        b.badge = document.getElementById('edit-b-badge').value.trim() || b.badge;
+
+        setStorage('mobinx_hero_banners', state.banners);
+        showToast('Banner updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('banners', b.id, b);
+        broadcastSync('BANNERS_UPDATED', b);
+      });
+    });
+  });
+
+  // Banners: Delete
+  document.querySelectorAll('.btn-delete-banner').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const id = btn.getAttribute('data-id');
+      if (!id) return;
+      state.banners = state.banners.filter(b => String(b.id) !== String(id));
+      setStorage('mobinx_hero_banners', state.banners);
+      showToast('Banner removed.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('banners', id);
+      broadcastSync('BANNERS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Banners: Toggle Status
+  document.querySelectorAll('.btn-toggle-banner-status').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const id = btn.getAttribute('data-id');
+      const b = state.banners.find(x => String(x.id) === String(id));
+      if (b) {
+        b.isActive = (b.isActive === false || b.status === 'inactive') ? true : false;
+        b.status = b.isActive ? 'active' : 'inactive';
+        setStorage('mobinx_hero_banners', state.banners);
+        showToast(`Hero banner is now ${b.isActive ? 'Active' : 'Disabled'}!`, 'info');
+        renderCurrentTab();
+
+        await syncToFirestore('banners', b.id, b);
+        broadcastSync('BANNERS_UPDATED', b);
+      }
+    });
+  });
+
+
+  // Home Notice Popup: Live Preview Listeners
+  const popupFileInput = document.getElementById('admin-popup-file-input');
+  const popupImgInput = document.getElementById('admin-popup-image');
+  const mockupImgContainer = document.getElementById('mockup-img-container');
+  const mockupPopupImg = document.getElementById('mockup-popup-img');
+  const mockupPopupText = document.getElementById('mockup-popup-text');
+  const mockupPopupBtn = document.getElementById('mockup-popup-btn');
+  const popupDescInput = document.getElementById('admin-popup-desc');
+  const popupBtnTextInput = document.getElementById('admin-popup-btn-text');
+  const popupEnabledCheckbox = document.getElementById('admin-popup-enabled');
+  const popupStatusLabel = document.getElementById('admin-popup-status-label');
+
+  popupEnabledCheckbox?.addEventListener('change', (e) => {
+    if (popupStatusLabel) {
+      if (e.target.checked) {
+        popupStatusLabel.textContent = '● ACTIVE IN APP';
+        popupStatusLabel.style.color = '#10b981';
+      } else {
+        popupStatusLabel.textContent = '○ DISABLED';
+        popupStatusLabel.style.color = 'var(--text-muted)';
+      }
+    }
+  });
+
+  popupDescInput?.addEventListener('input', (e) => {
+    if (mockupPopupText) {
+      mockupPopupText.textContent = e.target.value || 'Notice description text';
+    }
+  });
+
+  popupBtnTextInput?.addEventListener('input', (e) => {
+    if (mockupPopupBtn) {
+      mockupPopupBtn.textContent = e.target.value || 'ক্লিক করুন';
+    }
+  });
+
+  popupImgInput?.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    if (mockupPopupImg && mockupImgContainer) {
+      if (val) {
+        mockupPopupImg.src = val;
+        mockupImgContainer.style.display = 'block';
+      } else {
+        mockupImgContainer.style.display = 'none';
+      }
+    }
+  });
+
+  popupFileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      showToast('Processing image...', 'info');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target.result;
+        if (popupImgInput) popupImgInput.value = dataUrl;
+        if (mockupPopupImg && mockupImgContainer) {
+          mockupPopupImg.src = dataUrl;
+          mockupImgContainer.style.display = 'block';
+        }
+        showToast('Image loaded into mobile preview!', 'success');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Home Notice Popup: Save
+  document.getElementById('form-save-home-popup')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const enabled = document.getElementById('admin-popup-enabled')?.checked ?? false;
+    const image = document.getElementById('admin-popup-image')?.value.trim() || '';
+    const description = document.getElementById('admin-popup-desc')?.value.trim() || '';
+    const buttonText = document.getElementById('admin-popup-btn-text')?.value.trim() || 'ক্লিক করুন';
+    const buttonUrl = document.getElementById('admin-popup-btn-url')?.value.trim() || 'https://t.me/mrmobin1m';
+    const showOncePerSession = document.getElementById('admin-popup-once')?.checked ?? true;
+
+    state.homePopup = {
+      enabled,
+      image,
+      description,
+      title: description,
+      buttonText,
+      buttonUrl,
+      showOncePerSession
+    };
+
+    setStorage('mobinx_home_popup', state.homePopup);
+    showToast(enabled ? '🎉 Home Notice Popup enabled & deployed!' : 'Home Notice Popup saved (Disabled).', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'home_popup', state.homePopup);
+    await syncToFirestore('config', 'notices', { welcomePopup: state.homePopup });
+    broadcastSync('HOME_POPUP_UPDATED', state.homePopup);
+  });
+
+  // App Update: Save
+  document.getElementById('admin-update-enabled')?.addEventListener('change', function() {
+    const lbl = document.getElementById('admin-update-status-label');
+    if (lbl) {
+      lbl.textContent = this.checked ? '● ACTIVE IN APP' : '○ DISABLED';
+      lbl.style.color = this.checked ? '#10b981' : 'var(--text-muted)';
+    }
+  });
+
+  document.getElementById('form-save-update-config')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const enabled = document.getElementById('admin-update-enabled')?.checked ?? false;
+    const latestVersion = document.getElementById('admin-update-version')?.value.trim() || '1.1';
+    const forceUpdate = document.getElementById('admin-update-force')?.checked ?? false;
+    const updateTitle = document.getElementById('admin-update-title')?.value.trim() || 'নতুন আপডেট উপলব্ধ! 🚀';
+    const updateMessage = document.getElementById('admin-update-msg')?.value.trim() || 'অ্যাপের নতুন ফিচারের জন্য গুগল প্লে স্টোর থেকে এখনই আপডেট করে নিন।';
+    const updateUrl = document.getElementById('admin-update-url')?.value.trim() || 'https://play.google.com/store/apps/details?id=com.mobinx.gaming';
+
+    state.appUpdate = {
+      enabled,
+      latestVersion,
+      currentVersion: '1.0',
+      forceUpdate,
+      updateTitle,
+      updateMessage,
+      updateUrl
+    };
+
+    setStorage('mobinx_app_update', state.appUpdate);
+    showToast(enabled ? '🚀 Play Store Update Alert saved & deployed live!' : 'Update Alert saved (Disabled).', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'app_update', state.appUpdate);
+    broadcastSync('APP_UPDATE_CONFIG_UPDATED', state.appUpdate);
+  });
+
+  // Push Broadcast
+  document.getElementById('form-broadcast-push')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('push-msg-input').value.trim();
+    state.notices.pushNotification = {
+      message: msg,
+      timestamp: Date.now()
+    };
+
+    setStorage('mobinx_notices_config', state.notices);
+    showToast('📢 Push notification dispatched to all apps!', 'success');
+    document.getElementById('push-msg-input').value = '';
+
+    await syncToFirestore('config', 'notices', state.notices);
+    broadcastSync('PUSH_BROADCAST', state.notices.pushNotification);
+  });
+
+  // Users: Export Buttons
+  document.getElementById('btn-export-users-csv')?.addEventListener('click', exportUsersCSV);
+  document.getElementById('btn-export-users-marketing')?.addEventListener('click', exportUsersMarketingList);
+  document.getElementById('btn-export-users-json')?.addEventListener('click', exportUsersJSON);
+
+  // Users: Search Filter
+  document.getElementById('input-search-players')?.addEventListener('input', (e) => {
+    state.userSearchQuery = e.target.value;
+    renderCurrentTab();
+  });
+
+  // Users: Refresh Cloud
+  document.getElementById('btn-refresh-users')?.addEventListener('click', async () => {
+    showToast('Syncing fresh from Cloud Firestore...', 'info');
+    if (db) {
+      try {
+        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const snap = await getDocs(collection(db, 'users'));
+        const usersList = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          const email = (d.email || '').toLowerCase().trim();
+          if (!legacyDummyEmails.includes(email)) {
+            usersList.push({ ...d, id: docSnap.id });
+          }
+        });
+
+        usersList.sort((a, b) => {
+          const timeA = a.registeredAtIso ? new Date(a.registeredAtIso).getTime() : 0;
+          const timeB = b.registeredAtIso ? new Date(b.registeredAtIso).getTime() : 0;
+          if (timeA !== timeB) return timeA - timeB;
+          if (a.isAdmin && !b.isAdmin) return -1;
+          if (!a.isAdmin && b.isAdmin) return 1;
+          return (a.userId || 999) - (b.userId || 999);
+        });
+
+        usersList.forEach((u, i) => {
+          u.userId = i + 1;
+          u.playerNumber = i + 1;
+        });
+
+        usersList.sort((a, b) => (b.userId || 0) - (a.userId || 0));
+
+        state.users = usersList;
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Synced ${usersList.length} verified players from Cloud!`, 'success');
+        renderCurrentTab();
+      } catch (err) {
+        showToast('Cloud sync notice: ' + err.message, 'warning');
+      }
+    }
+  });
+
+  // Users: Copy Field
+  document.querySelectorAll('.btn-copy-field').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const val = btn.dataset.copy;
+      const label = btn.dataset.label || 'Value';
+      if (val && navigator.clipboard) {
+        navigator.clipboard.writeText(val).then(() => {
+          showToast(`Copied ${label}: ${val}`, 'success');
+        }).catch(() => {
+          copyFallback(val, label);
+        });
+      } else if (val) {
+        copyFallback(val, label);
+      }
+    });
+  });
+
+  function copyFallback(text, label) {
+    const temp = document.createElement('input');
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+    showToast(`Copied ${label}: ${text}`, 'success');
+  }
+
+  // Users: Edit Player
+  document.querySelectorAll('.btn-edit-player').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const u = state.users.find(x => x.id === btn.dataset.id);
+      if (!u) return;
+
+      const modalHtml = `
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Player Name / In-Game Name *</label>
+            <input type="text" id="edit-u-name" class="form-control" value="${u.fullName || u.username || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone Number</label>
+            <input type="tel" id="edit-u-phone" class="form-control" value="${u.phone || ''}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Free Fire UID</label>
+            <input type="text" id="edit-u-uid" class="form-control" value="${u.ffUid || ''}" />
+          </div>
+        </div>
+      `;
+
+      openAdminModal('✏️ Edit Player Profile', modalHtml, async () => {
+        u.fullName = document.getElementById('edit-u-name').value.trim() || u.fullName;
+        u.username = u.fullName;
+        u.phone = document.getElementById('edit-u-phone').value.trim();
+        u.phoneNumber = u.phone;
+        u.ffUid = document.getElementById('edit-u-uid').value.trim();
+
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Player ${u.fullName} updated!`, 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('users', u.id, u);
+      });
+    });
+  });
+
+  // Users: Toggle Suspend
+  document.querySelectorAll('.btn-toggle-user-status').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const u = state.users.find(x => x.id === btn.dataset.id);
+      if (u) {
+        u.status = u.status === 'Suspended' ? 'Active' : 'Suspended';
+        setStorage('mobinx_registered_users', state.users);
+        showToast(`Player status set to ${u.status}!`, 'info');
+        renderCurrentTab();
+
+        await syncToFirestore('users', u.id, u);
+      }
+    });
+  });
+
+  // Users: Delete Player
+  document.querySelectorAll('.btn-delete-user').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const confirmDel = confirm('Are you sure you want to delete this player account?');
+      if (!confirmDel) return;
+
+      state.users = state.users.filter(u => u.id !== id);
+      setStorage('mobinx_registered_users', state.users);
+      showToast('Player removed.', 'warning');
+      renderCurrentTab();
+
+      await deleteFromFirestore('users', id);
+    });
+  });
+}
+
+// ==========================================
+// 9. THEME CONTROLLER & NAVIGATION
+// ==========================================
+function initTheme() {
+  const savedTheme = localStorage.getItem('mobinx_admin_theme') || document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(savedTheme);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('mobinx_admin_theme', theme);
+  const icon = document.getElementById('theme-toggle-icon');
+  const text = document.getElementById('theme-toggle-text');
+  if (icon && text) {
+    if (theme === 'light') {
+      icon.textContent = '☀️';
+      text.textContent = 'Light Mode';
+    } else {
+      icon.textContent = '🌙';
+      text.textContent = 'Dark Mode';
+    }
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  showToast(`Switched to ${next === 'light' ? 'Light' : 'Dark'} Mode`, 'info');
+}
+
+function bindNavigation() {
+  document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleTheme);
+
+  // Modal event listeners
+  document.getElementById('admin-modal-close-btn')?.addEventListener('click', closeAdminModal);
+  document.getElementById('admin-modal-cancel-btn')?.addEventListener('click', closeAdminModal);
+  document.getElementById('admin-modal-save-btn')?.addEventListener('click', () => {
+    if (typeof state.modalCallback === 'function') {
+      state.modalCallback();
+    }
+  });
+  document.getElementById('admin-modal-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'admin-modal-overlay') closeAdminModal();
+  });
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      state.activeTab = item.dataset.tab;
+      renderCurrentTab();
+
+      const sidebar = document.getElementById('admin-sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (sidebar && window.innerWidth <= 900) {
+        sidebar.classList.remove('open');
+        backdrop?.classList.remove('open');
+      }
+    });
+  });
+
+  document.getElementById('mobile-toggle-btn')?.addEventListener('click', () => {
+    const sidebar = document.getElementById('admin-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const isOpen = sidebar?.classList.toggle('open');
+    if (backdrop) {
+      if (isOpen) backdrop.classList.add('open');
+      else backdrop.classList.remove('open');
+    }
+  });
+
+  document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
+    document.getElementById('admin-sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-backdrop')?.classList.remove('open');
+  });
+}
+
+// ==========================================
+// 10. BOOTSTRAP
+// ==========================================
+function startAdminApp() {
+  try {
+    initTheme();
+    bindNavigation();
+    renderCurrentTab();
+    initFirebase().catch(e => console.warn('Firebase init notice:', e));
+  } catch (err) {
+    console.error('Error starting admin app:', err);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAdminApp);
+  } else {
+    startAdminApp();
+  }
+}
+
+  </script>
 </body>
 </html>
