@@ -1557,6 +1557,17 @@ async function initFirebase() {
       }
     }, (err) => console.warn('AppUpdate onSnapshot notice:', err.message));
 
+    // Live Snapshot Listener for Auth Settings & Feature Flags
+    onSnapshot(doc(db, 'config', 'auth_settings'), (docSnap) => {
+      if (docSnap.exists()) {
+        state.authSettings = { ...state.authSettings, ...docSnap.data() };
+        setStorage('mobinx_auth_settings', state.authSettings);
+        if (state.activeTab === 'auth-settings') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('AuthSettings onSnapshot notice:', err.message));
+
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
     console.warn('Firebase connection note (operating with local sync bridge):', err.message);
