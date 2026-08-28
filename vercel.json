@@ -1,6 +1,5 @@
-{
-  "buildCommand": "node -e \"console.log('Build OK')\"",
-  "outputDirectory": ".",
+﻿{
+  "version": 2,
   "cleanUrls": true,
   "rewrites": [
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },

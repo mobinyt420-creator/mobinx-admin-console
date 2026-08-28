@@ -1,11 +1,11 @@
-{
+﻿{
   "name": "mobinx-admin-console",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "server.js",
   "scripts": {
-    "build": "node -e \"console.log('Static build successful')\"",
-    "dev": "node local-server.js",
-    "start": "node local-server.js"
+    "dev": "node server.js",
+    "start": "node server.js"
   }
 }
