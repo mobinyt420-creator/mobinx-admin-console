@@ -1,4 +1,6 @@
 {
+  "buildCommand": "node -e \"console.log('Build OK')\"",
+  "outputDirectory": ".",
   "cleanUrls": true,
   "rewrites": [
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
@@ -7,5 +9,3 @@
     { "source": "/delete", "destination": "/delete-account.html" }
   ]
 }
-
-
