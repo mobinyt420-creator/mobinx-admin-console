@@ -1,0 +1,308 @@
+/* CSS Reset & Global Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: #0b0f19;
+  font-family: var(--font-family);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-main);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Device Wrapper (Centers mobile on desktop, native on mobile) */
+.device-viewport {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at 50% 20%, #1e293b 0%, #0b0f19 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Desktop Preview Controls (Disabled for Native APK) */
+.desktop-controls {
+  display: none !important;
+}
+
+.status-bar {
+  display: none !important;
+}
+
+/* Mobile Screen Container */
+.app-container {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .device-viewport {
+    background: var(--bg-app) !important;
+  }
+  .app-container {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .app-container {
+    max-width: 440px;
+    height: calc(100% - 32px);
+    max-height: 920px;
+    border-radius: 36px;
+    border: 6px solid #1e293b;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Android Status Bar Simulation */
+.status-bar {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  background: var(--bg-app);
+  z-index: 50;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.status-bar.status-bar-cct-mode {
+  background: #1e9cd7 !important;
+  color: #ffffff !important;
+}
+
+.status-bar.status-bar-cct-mode svg {
+  fill: #ffffff !important;
+}
+
+.status-bar-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Main Scrollable Screen Area */
+.app-main-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding-bottom: calc(var(--bottom-nav-height) + 16px);
+}
+
+.app-container.onboarding-active,
+.device-viewport.onboarding-active {
+  background: #01040f;
+}
+
+.app-main-content.onboarding-mode {
+  padding-bottom: 0 !important;
+  background: transparent;
+}
+
+.app-container.onboarding-active:has(.onboarding-step-2),
+.device-viewport.onboarding-active:has(.onboarding-step-2) {
+  background: #f0f7ff !important;
+}
+
+.app-main-content.fullscreen-webview-mode {
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+}
+
+.app-main-content::-webkit-scrollbar {
+  width: 4px;
+}
+.app-main-content::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: var(--radius-full);
+}
+
+/* Active View Animations */
+.view-container {
+  min-height: 100%;
+  animation: fadeIn 0.22s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Typography Utility */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+p {
+  color: var(--text-secondary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: none;
+}
+
+/* Badge Utilities */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-primary {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.badge-success {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.badge-warning {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+.badge-danger {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+/* Skeleton Loading Animation */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background-size: 400% 100%;
+  animation: skeletonPulse 1.4s ease infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes skeletonPulse {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* Empty and Error State Styles */
+.state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 14px;
+}
+
+.state-icon-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.state-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.state-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 280px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  padding: 12px 22px;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  transition: var(--transition-fast);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  padding: 12px 20px;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--transition-fast);
+}
+
+.btn-secondary:active {
+  background: var(--bg-card-subtle);
+  transform: scale(0.97);
+}

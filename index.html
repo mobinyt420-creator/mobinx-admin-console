@@ -1473,6 +1473,18 @@ textarea.form-control {
           <span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Alerts</span>
         </div>
 
+        <div class="menu-label">Master Controls</div>
+        <div class="nav-item" data-tab="auth">
+          <span class="icon">🔐</span>
+          <span>Authentication</span>
+          <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">Switches</span>
+        </div>
+
+        <div class="nav-item" data-tab="products">
+          <span class="icon">🛍️</span>
+          <span>Dynamic Products</span>
+        </div>
+
         <div class="menu-label">Community</div>
         <div class="nav-item" data-tab="users">
           <span class="icon">👥</span>
@@ -1795,6 +1807,31 @@ async function initFirebase() {
       }
     }, (err) => console.warn('AppUpdate onSnapshot notice:', err.message));
 
+    // 8. Live Authentication Switches Listener
+    onSnapshot(doc(db, 'config', 'auth_settings'), (docSnap) => {
+      if (docSnap.exists()) {
+        state.authSettings = { ...state.authSettings, ...docSnap.data() };
+        setStorage('mobinx_auth_settings', state.authSettings);
+        if (state.activeTab === 'auth') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('AuthSettings onSnapshot notice:', err.message));
+
+    // 9. Live Dynamic Products Listener
+    onSnapshot(doc(db, 'config', 'dynamic_products'), (docSnap) => {
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        if (Array.isArray(d.products)) {
+          state.dynamicProducts = d.products;
+          setStorage('mobinx_dynamic_products', state.dynamicProducts);
+          if (state.activeTab === 'products') {
+            renderCurrentTab();
+          }
+        }
+      }
+    }, (err) => console.warn('DynamicProducts onSnapshot notice:', err.message));
+
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
     console.warn('Firebase connection note (operating with local sync bridge):', err.message);
@@ -1911,6 +1948,22 @@ const defaultAppUpdate = {
   updateUrl: 'https://play.google.com/store/apps/details?id=com.mobinx.gaming'
 };
 
+const defaultAuthSettings = {
+  authSystemEnabled: true,
+  googleLoginEnabled: true,
+  googlePhoneVerificationEnabled: false,
+  manualLoginEnabled: true,
+  manualRegistrationEnabled: true,
+  manualEmailVerificationEnabled: false,
+  manualPhoneVerificationEnabled: false,
+  topUpEnabled: true
+};
+
+const defaultDynamicProducts = [
+  { id: 'prod-topup-ff', name: 'Noob Topup Direct', image: 'assets/images/service_topup.jpg', url: 'https://noobtopup.com/', enabled: true, sortOrder: 1 },
+  { id: 'prod-shop-store', name: 'Obin Shop Store', image: 'assets/images/service_shop.jpg', url: 'https://www.obinshop.com/', enabled: true, sortOrder: 2 }
+];
+
 const defaultUsers = [
   {
     id: 'user_mobinyt420_gmail_com',
@@ -1947,6 +2000,8 @@ const state = {
   notices: getStorage('mobinx_notices_config', defaultNotices),
   homePopup: getStorage('mobinx_home_popup', defaultHomePopup),
   appUpdate: getStorage('mobinx_app_update', defaultAppUpdate),
+  authSettings: getStorage('mobinx_auth_settings', defaultAuthSettings),
+  dynamicProducts: getStorage('mobinx_dynamic_products', defaultDynamicProducts),
   users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
   userSearchQuery: '',
   modalCallback: null
@@ -3098,6 +3153,212 @@ function renderUsers() {
 }
 
 // ==========================================
+// TAB: AUTHENTICATION SWITCHES
+// ==========================================
+function renderAuthSettings() {
+  const s = state.authSettings || defaultAuthSettings;
+  return `
+    <div class="tab-pane active" id="tab-auth">
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h3 class="card-title">🔐 Authentication Control Center</h3>
+            <p class="card-subtitle">Real-time switches for Google login, manual login, and SMS/Email verification</p>
+          </div>
+          <span class="badge-pill" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-weight: 800;">
+            Live Firestore Sync
+          </span>
+        </div>
+
+        <form id="form-auth-settings" style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- 1. GENERAL -->
+          <div style="background: var(--bg-card-hover); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <h4 style="font-size: 13px; font-weight: 800; color: var(--primary); margin-bottom: 10px; text-transform: uppercase;">1. GENERAL</h4>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Authentication System</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Master switch for entire user login & registration subsystem</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-system" ${s.authSystemEnabled !== false ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.authSystemEnabled !== false ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 2. GOOGLE LOGIN -->
+          <div style="background: var(--bg-card-hover); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <h4 style="font-size: 13px; font-weight: 800; color: var(--primary); margin-bottom: 12px; text-transform: uppercase;">2. GOOGLE LOGIN</h4>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Google Login</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Enable/disable primary Google Authentication</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-google" ${s.googleLoginEnabled !== false ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.googleLoginEnabled !== false ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Google Phone Verification (OTP)</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">If OFF, phone number is collected without requiring 6-digit OTP code</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-google-phone-ver" ${s.googlePhoneVerificationEnabled === true ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.googlePhoneVerificationEnabled === true ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 3. MANUAL AUTHENTICATION -->
+          <div style="background: var(--bg-card-hover); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <h4 style="font-size: 13px; font-weight: 800; color: var(--primary); margin-bottom: 12px; text-transform: uppercase;">3. MANUAL AUTHENTICATION</h4>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Manual Login</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Allow email/password manual login</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-manual-login" ${s.manualLoginEnabled !== false ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualLoginEnabled !== false ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Manual Registration</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Allow creating new accounts with email/password form</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-manual-reg" ${s.manualRegistrationEnabled !== false ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualRegistrationEnabled !== false ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Email Verification</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Require email link confirmation</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-email-ver" ${s.manualEmailVerificationEnabled === true ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualEmailVerificationEnabled === true ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">Phone Verification (OTP)</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Require 6-digit OTP verification code on registration</div>
+              </div>
+              <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auth-adm-phone-ver" ${s.manualPhoneVerificationEnabled === true ? 'checked' : ''}>
+                <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualPhoneVerificationEnabled === true ? '#10b981' : '#cbd5e1'}; border-radius: 24px;"></span>
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="padding: 12px 20px; font-size: 14px; font-weight: 800;">
+            💾 Save & Broadcast Authentication Settings
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+// ==========================================
+// TAB: DYNAMIC PRODUCTS
+// ==========================================
+function renderDynamicProducts() {
+  const products = state.dynamicProducts || defaultDynamicProducts;
+  return `
+    <div class="tab-pane active" id="tab-products">
+      
+      <!-- Add Product Form Card -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-header">
+          <h3 class="card-title">➕ Add Dynamic Product / External Web Service</h3>
+          <p class="card-subtitle">Connect new websites and top-up stores directly into Mobin X app in real-time</p>
+        </div>
+
+        <form id="form-add-dynamic-product" style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <label class="form-label">Product Name *</label>
+            <input type="text" id="new-prod-name" class="form-control" placeholder="e.g. Free Fire Diamond Topup" required />
+          </div>
+
+          <div>
+            <label class="form-label">Product Image URL *</label>
+            <input type="text" id="new-prod-img" class="form-control" placeholder="assets/images/service_topup.jpg or https://..." required />
+          </div>
+
+          <div>
+            <label class="form-label">Website URL (Target Link) *</label>
+            <input type="url" id="new-prod-url" class="form-control" placeholder="https://..." required />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label class="form-label">Status</label>
+              <select id="new-prod-status" class="form-control">
+                <option value="ON">ON (Active)</option>
+                <option value="OFF">OFF (Disabled)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Sort Order</label>
+              <input type="number" id="new-prod-sort" class="form-control" value="${products.length + 1}" />
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top: 6px;">
+            ➕ Publish Dynamic Product
+          </button>
+        </form>
+      </div>
+
+      <!-- Active Dynamic Products Card -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">📦 Active Dynamic Products (${products.length})</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${products.map(p => `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="${p.image}" alt="${p.name}" style="width: 44px; height: 44px; border-radius: 8px; object-fit: cover;" onerror="this.src='assets/images/service_topup.jpg';" />
+                <div>
+                  <div style="font-size: 13.5px; font-weight: 800;">${p.name}</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">${p.url}</div>
+                  <span class="badge-pill" style="font-size: 10px; ${p.enabled !== false ? 'background: rgba(16, 185, 129, 0.15); color: #34d399;' : 'background: rgba(239, 68, 68, 0.15); color: #f87171;'}">
+                    ${p.enabled !== false ? '● Active' : '● Disabled'}
+                  </span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-edit-dynamic-prod" data-id="${p.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                  ✏️ Edit
+                </button>
+                <button class="btn btn-danger btn-delete-dynamic-prod" data-id="${p.id}" style="padding: 6px 12px; font-size: 11.5px;">
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
 // 5. EXPORT HELPERS (CSV & JSON & Leads)
 // ==========================================
 function exportUsersCSV() {
@@ -3256,6 +3517,14 @@ function renderCurrentTab() {
     case 'banners':
       if (title) title.textContent = 'Hero & Promotional Banners';
       content.innerHTML = renderBanners();
+      break;
+    case 'auth':
+      if (title) title.textContent = 'Authentication Control Center';
+      content.innerHTML = renderAuthSettings();
+      break;
+    case 'products':
+      if (title) title.textContent = 'Dynamic Products & Web Services';
+      content.innerHTML = renderDynamicProducts();
       break;
     case 'urls':
       if (title) title.textContent = 'Notices & Announcement Modals';
@@ -4393,6 +4662,134 @@ function bindCurrentTabEvents() {
       renderCurrentTab();
 
       await deleteFromFirestore('users', id);
+    });
+  });
+
+  // Auth Settings: Save form
+  document.getElementById('form-auth-settings')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const authSystemEnabled = document.getElementById('auth-adm-system')?.checked ?? true;
+    const googleLoginEnabled = document.getElementById('auth-adm-google')?.checked ?? true;
+    const googlePhoneVerificationEnabled = document.getElementById('auth-adm-google-phone-ver')?.checked ?? false;
+    const manualLoginEnabled = document.getElementById('auth-adm-manual-login')?.checked ?? true;
+    const manualRegistrationEnabled = document.getElementById('auth-adm-manual-reg')?.checked ?? true;
+    const manualEmailVerificationEnabled = document.getElementById('auth-adm-email-ver')?.checked ?? false;
+    const manualPhoneVerificationEnabled = document.getElementById('auth-adm-phone-ver')?.checked ?? false;
+
+    state.authSettings = {
+      authSystemEnabled,
+      googleLoginEnabled,
+      googlePhoneVerificationEnabled,
+      manualLoginEnabled,
+      manualRegistrationEnabled,
+      manualEmailVerificationEnabled,
+      manualPhoneVerificationEnabled,
+      topUpEnabled: true
+    };
+
+    setStorage('mobinx_auth_settings', state.authSettings);
+    showToast('🔐 Authentication switches saved and broadcasted!', 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'auth_settings', state.authSettings);
+    broadcastSync('AUTH_SETTINGS_UPDATED', state.authSettings);
+  });
+
+  // Dynamic Products: Add form
+  document.getElementById('form-add-dynamic-product')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('new-prod-name')?.value.trim();
+    const image = document.getElementById('new-prod-img')?.value.trim();
+    const url = document.getElementById('new-prod-url')?.value.trim();
+    const enabled = document.getElementById('new-prod-status')?.value === 'ON';
+    const sortOrder = parseInt(document.getElementById('new-prod-sort')?.value, 10) || 1;
+
+    const newProd = {
+      id: 'prod-' + Date.now(),
+      name,
+      image: image || 'assets/images/service_topup.jpg',
+      url,
+      enabled,
+      sortOrder
+    };
+
+    state.dynamicProducts.unshift(newProd);
+    setStorage('mobinx_dynamic_products', state.dynamicProducts);
+    showToast(`Dynamic Product "${name}" published live!`, 'success');
+    renderCurrentTab();
+
+    await syncToFirestore('config', 'dynamic_products', { products: state.dynamicProducts });
+    broadcastSync('DYNAMIC_PRODUCTS_UPDATED', state.dynamicProducts);
+  });
+
+  // Dynamic Products: Edit
+  document.querySelectorAll('.btn-edit-dynamic-prod').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const p = state.dynamicProducts.find(x => x.id === id);
+      if (!p) return;
+
+      const modalHtml = `
+        <form id="form-edit-dynamic-prod" style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <label class="form-label">Product Name</label>
+            <input type="text" id="edit-prod-name" class="form-control" value="${p.name}" required />
+          </div>
+          <div>
+            <label class="form-label">Product Image URL</label>
+            <input type="text" id="edit-prod-img" class="form-control" value="${p.image}" required />
+          </div>
+          <div>
+            <label class="form-label">Website URL</label>
+            <input type="url" id="edit-prod-url" class="form-control" value="${p.url}" required />
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label class="form-label">Status</label>
+              <select id="edit-prod-status" class="form-control">
+                <option value="ON" ${p.enabled !== false ? 'selected' : ''}>ON (Active)</option>
+                <option value="OFF" ${p.enabled === false ? 'selected' : ''}>OFF (Disabled)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Sort Order</label>
+              <input type="number" id="edit-prod-sort" class="form-control" value="${p.sortOrder || 1}" />
+            </div>
+          </div>
+        </form>
+      `;
+
+      openAdminModal('✏️ Edit Dynamic Product', modalHtml, async () => {
+        p.name = document.getElementById('edit-prod-name')?.value.trim() || p.name;
+        p.image = document.getElementById('edit-prod-img')?.value.trim() || p.image;
+        p.url = document.getElementById('edit-prod-url')?.value.trim() || p.url;
+        p.enabled = document.getElementById('edit-prod-status')?.value === 'ON';
+        p.sortOrder = parseInt(document.getElementById('edit-prod-sort')?.value, 10) || p.sortOrder;
+
+        setStorage('mobinx_dynamic_products', state.dynamicProducts);
+        showToast('Dynamic product updated!', 'success');
+        closeAdminModal();
+        renderCurrentTab();
+
+        await syncToFirestore('config', 'dynamic_products', { products: state.dynamicProducts });
+        broadcastSync('DYNAMIC_PRODUCTS_UPDATED', state.dynamicProducts);
+      });
+    });
+  });
+
+  // Dynamic Products: Delete
+  document.querySelectorAll('.btn-delete-dynamic-prod').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (confirm('Delete this dynamic product?')) {
+        state.dynamicProducts = state.dynamicProducts.filter(x => x.id !== id);
+        setStorage('mobinx_dynamic_products', state.dynamicProducts);
+        showToast('Dynamic product deleted.', 'warning');
+        renderCurrentTab();
+
+        await syncToFirestore('config', 'dynamic_products', { products: state.dynamicProducts });
+        broadcastSync('DYNAMIC_PRODUCTS_UPDATED', state.dynamicProducts);
+      }
     });
   });
 }
