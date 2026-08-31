@@ -530,11 +530,13 @@ export function bindOnboardingEvents() {
     hideError();
     const card = document.getElementById('card-google-login');
     if (card) {
-      card.style.opacity = '0.7';
+      card.style.opacity = '0.75';
+      card.style.transform = 'scale(0.98)';
       card.style.pointerEvents = 'none';
     }
 
     try {
+      Toast.show('Connecting to Google Sign-In...', 'info');
       const googleUser = await firebaseService.signInWithGoogle();
       if (googleUser && googleUser.email) {
         const email = googleUser.email.toLowerCase().trim();
@@ -546,9 +548,10 @@ export function bindOnboardingEvents() {
         const existingUsers = authService.getAllUsers();
         const existing = existingUsers.find(u => (u.uid && u.uid === uid) || (u.email && u.email.toLowerCase() === email));
 
-        if (existing && existing.phoneNumber) {
-          // Returning Google user with phone -> Direct login
-          const user = await authService.loginWithGoogle(email, displayName, existing.phoneNumber, existing.ffUid, avatar, uid, { phoneVerified: existing.phoneVerified });
+        if (existing && (existing.phoneNumber || existing.phone)) {
+          // Returning Google user with phone -> Direct instant login
+          const phone = existing.phoneNumber || existing.phone;
+          const user = await authService.loginWithGoogle(email, existing.fullName || existing.username || displayName, phone, existing.ffUid, avatar, uid, { phoneVerified: existing.phoneVerified });
           Toast.show(`🎉 Welcome back, ${user.username}!`, 'success');
           stateManager.navigate('home');
           return;
@@ -565,16 +568,22 @@ export function bindOnboardingEvents() {
         const emailBadge = document.getElementById('gp-email-badge');
         if (emailBadge) emailBadge.textContent = email;
         const nameInput = document.getElementById('gp-fullname');
-        if (nameInput) nameInput.value = displayName;
+        if (nameInput) {
+          nameInput.value = '';
+          nameInput.placeholder = 'Enter your actual full name';
+        }
+        const phoneInput = document.getElementById('gp-phone');
+        if (phoneInput) phoneInput.value = '';
 
         openModal('modal-google-profile');
       }
     } catch (err) {
       console.warn('Google Sign-In notice:', err.message);
-      showError('Google sign-in was cancelled or unavailable. You can also use Manual Login.');
+      showError(err.message || 'Google sign-in was cancelled or unavailable. You can also use Manual Login.');
     } finally {
       if (card) {
         card.style.opacity = '1';
+        card.style.transform = 'none';
         card.style.pointerEvents = 'auto';
       }
     }
