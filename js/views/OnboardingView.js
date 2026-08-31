@@ -101,98 +101,167 @@ function renderWelcomeStep() {
 }
 
 /**
- * Screen 2: Clean, Minimal Authentication Selection Screen (Two Compact Cards)
+ * Screen 2: Clean, Minimal Authentication Selection Screen (Adaptive & Vertically Centered)
  */
 function renderAuthSelectionView() {
   const authSettings = authService.getAuthSettings();
   const isGoogleEnabled = authSettings.googleLoginEnabled !== false;
   const isManualEnabled = authSettings.manualLoginEnabled !== false;
+  const bothEnabled = isGoogleEnabled && isManualEnabled;
 
   return `
-    <div class="view-container onboarding-view onboarding-auth-select" style="min-height: 100%; height: 100%; box-sizing: border-box; background: #060b18; color: #ffffff; padding: 24px 18px calc(20px + var(--safe-bottom)) 18px; display: flex; flex-direction: column; justify-content: space-between; overflow-y: auto; position: relative;">
+    <div class="view-container onboarding-view onboarding-auth-select" style="min-height: 100%; height: 100%; box-sizing: border-box; background: #060b18; color: #ffffff; padding: 24px 18px calc(24px + var(--safe-bottom)) 18px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; overflow-y: auto; position: relative;">
       
       <!-- Top Ambient Glow -->
-      <div style="position: absolute; top: -40px; left: 50%; transform: translateX(-50%); width: 280px; height: 160px; background: radial-gradient(circle, rgba(2, 132, 199, 0.22) 0%, rgba(2, 132, 199, 0) 70%); border-radius: 50%; pointer-events: none;"></div>
+      <div style="position: absolute; top: 12%; left: 50%; transform: translateX(-50%); width: 300px; height: 180px; background: radial-gradient(circle, rgba(2, 132, 199, 0.25) 0%, rgba(2, 132, 199, 0) 70%); border-radius: 50%; pointer-events: none;"></div>
 
-      <div style="position: relative; z-index: 2; width: 100%;">
+      <!-- Top Flexible Spacer for Vertical Centering -->
+      <div style="flex: 1; max-height: 6vh;"></div>
+
+      <!-- Center Main Content (Dead-Center on Screen) -->
+      <div style="position: relative; z-index: 2; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; margin: auto 0;">
         
         <!-- Header Branding -->
-        <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-top: 10px; margin-bottom: 24px;">
-          <div style="width: 54px; height: 54px; border-radius: 16px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 22px rgba(37, 99, 235, 0.4); margin-bottom: 10px; border: 1.5px solid rgba(56, 189, 248, 0.4);">
-            <img src="assets/images/mobinx_icon_512.png" alt="Mobin X" style="width: 44px; height: 44px; border-radius: 12px; object-fit: cover;" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 24 24\\' fill=\\'white\\'><path d=\\'M4 5L12 13L20 5V19H16V10L12 14L8 10V19H4V5Z\\'/></svg>';" />
+        <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 22px;">
+          <div style="width: 58px; height: 58px; border-radius: 18px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45); margin-bottom: 12px; border: 1.5px solid rgba(56, 189, 248, 0.45);">
+            <img src="assets/images/mobinx_icon_512.png" alt="Mobin X" style="width: 48px; height: 48px; border-radius: 14px; object-fit: cover;" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 24 24\\' fill=\\'white\\'><path d=\\'M4 5L12 13L20 5V19H16V10L12 14L8 10V19H4V5Z\\'/></svg>';" />
           </div>
-          <h2 style="font-size: 22px; font-weight: 900; color: #ffffff; margin: 0; letter-spacing: 0.5px; font-family: var(--font-heading);">MOBIN X</h2>
-          <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 2px;">Sign In to Continue</span>
+          <h2 style="font-size: 24px; font-weight: 900; color: #ffffff; margin: 0; letter-spacing: 0.5px; font-family: var(--font-heading);">MOBIN X</h2>
+          <span style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 3px;">Sign In to Continue</span>
         </div>
 
         <!-- Inline Error Alert Box (Hidden by default) -->
-        <div id="auth-error-box" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 10px 14px; margin-bottom: 18px; font-size: 12.5px; color: #fca5a5; font-weight: 600; line-height: 1.4; align-items: center; gap: 8px;">
+        <div id="auth-error-box" style="display: none; width: 100%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 10px 14px; margin-bottom: 18px; font-size: 12.5px; color: #fca5a5; font-weight: 600; line-height: 1.4; align-items: center; gap: 8px; box-sizing: border-box;">
           <span style="font-size: 16px;">⚠️</span>
           <span id="auth-error-text" style="flex: 1;">Authentication notice</span>
         </div>
 
-        <!-- 2 COMPACT CARDS CONTAINER (EQUAL SIZE & WEIGHT) -->
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
-          
-          <!-- CARD 1: MANUAL LOGIN (Dark/Neon Mobin X Language) -->
-          <div 
-            id="card-manual-login" 
-            role="button"
-            tabindex="0"
-            style="background: #0f172a; border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: space-between; min-height: 130px; cursor: pointer; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); transition: transform 0.15s ease, border-color 0.15s ease; ${!isManualEnabled ? 'opacity: 0.5; pointer-events: none;' : ''}"
-          >
-            <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
+        <!-- ADAPTIVE LOGIN CARDS CONTAINER -->
+        ${bothEnabled ? `
+          <!-- BOTH ENABLED: 2 COMPACT CARDS -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 18px; width: 100%;">
+            
+            <!-- CARD 1: MANUAL LOGIN -->
+            <div 
+              id="card-manual-login" 
+              role="button"
+              tabindex="0"
+              style="background: #0f172a; border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: space-between; min-height: 130px; cursor: pointer; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); transition: transform 0.15s ease, border-color 0.15s ease;"
+            >
+              <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+              <div>
+                <div style="font-size: 13.5px; font-weight: 800; color: #ffffff; margin-bottom: 2px;">Manual Login</div>
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Email & Password</div>
+              </div>
+              <div style="font-size: 10.5px; font-weight: 700; color: #38bdf8; margin-top: 6px;">
+                Sign In →
+              </div>
             </div>
-            <div>
-              <div style="font-size: 13.5px; font-weight: 800; color: #ffffff; margin-bottom: 2px;">Manual Login</div>
-              <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Email & Password</div>
+
+            <!-- CARD 2: GOOGLE LOGIN -->
+            <div 
+              id="card-google-login" 
+              role="button"
+              tabindex="0"
+              style="background: #ffffff; border: 1.5px solid #ffffff; border-radius: 16px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: space-between; min-height: 130px; cursor: pointer; box-shadow: 0 8px 24px rgba(56, 189, 248, 0.3); transition: transform 0.15s ease;"
+            >
+              <div style="width: 42px; height: 42px; border-radius: 12px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                <svg width="22" height="22" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+              </div>
+              <div>
+                <div style="font-size: 13.5px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">Google Login</div>
+                <div style="font-size: 11px; color: #64748b; font-weight: 600;">Fast & Direct</div>
+              </div>
+              <div style="font-size: 10.5px; font-weight: 800; color: #2563eb; margin-top: 6px;">
+                Continue →
+              </div>
             </div>
-            <div style="font-size: 10.5px; font-weight: 700; color: #38bdf8; margin-top: 6px;">
-              ${isManualEnabled ? 'Sign In →' : 'Unavailable'}
+
+          </div>
+        ` : isGoogleEnabled ? `
+          <!-- ONLY GOOGLE ENABLED: PROMINENT CENTERED GOOGLE CARD -->
+          <div style="width: 100%; margin-bottom: 18px;">
+            <div 
+              id="card-google-login" 
+              role="button"
+              tabindex="0"
+              style="background: #ffffff; border: 2px solid #ffffff; border-radius: 18px; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(56, 189, 248, 0.35); transition: transform 0.15s ease;"
+            >
+              <div style="width: 50px; height: 50px; border-radius: 15px; background: #f8fafc; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.06);">
+                <svg width="28" height="28" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+              </div>
+              <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 2px;">Continue with Google</div>
+              <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 12px;">Fast & Secure One-Tap Login</div>
+              <div style="display: inline-flex; align-items: center; gap: 8px; background: #2563eb; color: #ffffff; padding: 9px 22px; border-radius: 22px; font-size: 13px; font-weight: 800; box-shadow: 0 4px 14px rgba(37,99,235,0.4);">
+                <span>Sign In with Google</span>
+                <span>→</span>
+              </div>
             </div>
           </div>
-
-          <!-- CARD 2: GOOGLE LOGIN (Clean White Surface with Official G Logo) -->
-          <div 
-            id="card-google-login" 
-            role="button"
-            tabindex="0"
-            style="background: #ffffff; border: 1.5px solid #ffffff; border-radius: 16px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: space-between; min-height: 130px; cursor: pointer; box-shadow: 0 8px 24px rgba(56, 189, 248, 0.3); transition: transform 0.15s ease; ${!isGoogleEnabled ? 'opacity: 0.5; pointer-events: none;' : ''}"
-          >
-            <div style="width: 42px; height: 42px; border-radius: 12px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-              <svg width="22" height="22" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-            </div>
-            <div>
-              <div style="font-size: 13.5px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">Google Login</div>
-              <div style="font-size: 11px; color: #64748b; font-weight: 600;">Fast & Direct</div>
-            </div>
-            <div style="font-size: 10.5px; font-weight: 800; color: #2563eb; margin-top: 6px;">
-              ${isGoogleEnabled ? 'Continue →' : 'Unavailable'}
+        ` : isManualEnabled ? `
+          <!-- ONLY MANUAL ENABLED: PROMINENT CENTERED MANUAL CARD -->
+          <div style="width: 100%; margin-bottom: 18px;">
+            <div 
+              id="card-manual-login" 
+              role="button"
+              tabindex="0"
+              style="background: #0f172a; border: 1.5px solid rgba(56, 189, 248, 0.45); border-radius: 18px; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); transition: transform 0.15s ease;"
+            >
+              <div style="width: 48px; height: 48px; border-radius: 14px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+              <div style="font-size: 16px; font-weight: 900; color: #ffffff; margin-bottom: 2px;">Manual Login</div>
+              <div style="font-size: 12px; color: #94a3b8; font-weight: 500; margin-bottom: 12px;">Sign in with Email & Password</div>
+              <div style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff; padding: 9px 22px; border-radius: 22px; font-size: 13px; font-weight: 800; box-shadow: 0 4px 14px rgba(37,99,235,0.4);">
+                <span>Sign In with Email</span>
+                <span>→</span>
+              </div>
             </div>
           </div>
-
-        </div>
+        ` : `
+          <!-- BOTH DISABLED: GUEST ACCESS -->
+          <div style="width: 100%; margin-bottom: 18px; text-align: center; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 16px; padding: 20px 16px;">
+            <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Guest Mode Active</div>
+            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Online login is undergoing brief maintenance</div>
+            <button id="btn-auth-guest-bypass" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); border: none; color: #ffffff; padding: 10px 24px; border-radius: 12px; font-weight: 800; cursor: pointer;">
+              Enter as Guest →
+            </button>
+          </div>
+        `}
 
         <!-- Quick Help Note / Fallback Tip -->
-        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: 12px; padding: 12px 14px; text-align: center;">
-          <div style="font-size: 12px; color: #cbd5e1; font-weight: 500;">
-            👑 <strong style="color: #38bdf8;">Google Login</strong> is the recommended instant login method. If unavailable, use <strong style="color: #38bdf8;">Manual Login</strong>.
+        <div style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: 12px; padding: 12px 14px; text-align: center; box-sizing: border-box;">
+          <div style="font-size: 11.5px; color: #cbd5e1; font-weight: 500;">
+            ${bothEnabled 
+              ? '👑 <strong style="color: #38bdf8;">Google Login</strong> is the recommended instant login method. If unavailable, use <strong style="color: #38bdf8;">Manual Login</strong>.'
+              : isGoogleEnabled 
+                ? '⚡ Instant one-tap secure sign-in with your official Google Account.' 
+                : '🔒 Sign in with your registered email and password.'}
           </div>
         </div>
 
       </div>
 
       <!-- Bottom Privacy Policy & Terms Link -->
-      <div style="position: relative; z-index: 2; margin-top: 16px; text-align: center;">
+      <div style="position: relative; z-index: 2; margin-top: 14px; text-align: center;">
         <span style="font-size: 11px; color: #64748b;">By continuing, you agree to our </span>
         <a href="javascript:void(0)" id="link-auth-privacy" style="font-size: 11px; font-weight: 700; color: #38bdf8; text-decoration: underline;">Privacy Policy</a>
       </div>

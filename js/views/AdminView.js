@@ -1190,9 +1190,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Authentication System</div>
               <div style="font-size: 11px; color: #64748b;">Master switch for all login & registration</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-system" ${s.authSystemEnabled !== false ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.authSystemEnabled !== false ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-system" ${s.authSystemEnabled !== false ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
         </div>
@@ -1206,9 +1206,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Google Login</div>
               <div style="font-size: 11px; color: #64748b;">Primary one-tap Google authentication</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-google" ${s.googleLoginEnabled !== false ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.googleLoginEnabled !== false ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-google" ${s.googleLoginEnabled !== false ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
 
@@ -1217,9 +1217,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Google Phone Verification (OTP)</div>
               <div style="font-size: 11px; color: #64748b;">If OFF, phone number is collected without requiring OTP</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-google-phone-ver" ${s.googlePhoneVerificationEnabled === true ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.googlePhoneVerificationEnabled === true ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-google-phone-ver" ${s.googlePhoneVerificationEnabled === true ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
         </div>
@@ -1233,9 +1233,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Manual Login (Email/Password)</div>
               <div style="font-size: 11px; color: #64748b;">Fallback login with email and password</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-manual-login" ${s.manualLoginEnabled !== false ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualLoginEnabled !== false ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-manual-login" ${s.manualLoginEnabled !== false ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
 
@@ -1244,9 +1244,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Manual Registration</div>
               <div style="font-size: 11px; color: #64748b;">Allow new accounts via manual form</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-manual-reg" ${s.manualRegistrationEnabled !== false ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualRegistrationEnabled !== false ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-manual-reg" ${s.manualRegistrationEnabled !== false ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
 
@@ -1255,9 +1255,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Email Verification</div>
               <div style="font-size: 11px; color: #64748b;">Send Firebase verification link to email</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-email-ver" ${s.manualEmailVerificationEnabled === true ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualEmailVerificationEnabled === true ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-email-ver" ${s.manualEmailVerificationEnabled === true ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
 
@@ -1266,9 +1266,9 @@ function renderAuthControlTab(data) {
               <div style="font-size: 12.5px; font-weight: 700; color: #1e293b;">Phone Verification (OTP)</div>
               <div style="font-size: 11px; color: #64748b;">Require 6-digit OTP code on manual registration</div>
             </div>
-            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input type="checkbox" id="auth-sw-phone-ver" ${s.manualPhoneVerificationEnabled === true ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-              <span class="slider round" style="position: absolute; cursor: pointer; inset: 0; background-color: ${s.manualPhoneVerificationEnabled === true ? '#10b981' : '#cbd5e1'}; transition: .3s; border-radius: 24px;"></span>
+            <label class="custom-switch">
+              <input type="checkbox" id="auth-sw-phone-ver" ${s.manualPhoneVerificationEnabled === true ? 'checked' : ''}>
+              <span class="custom-slider"></span>
             </label>
           </div>
         </div>
@@ -1991,7 +1991,7 @@ export function bindAdminEvents() {
   });
 
   // --- AUTHENTICATION CONTROL TAB EVENTS ---
-  document.getElementById('btn-save-auth-settings')?.addEventListener('click', async () => {
+  const saveInAppAuthSettings = async (showNotice = true) => {
     const authSystemEnabled = document.getElementById('auth-sw-system')?.checked ?? true;
     const googleLoginEnabled = document.getElementById('auth-sw-google')?.checked ?? true;
     const googlePhoneVerificationEnabled = document.getElementById('auth-sw-google-phone-ver')?.checked ?? false;
@@ -2012,6 +2012,19 @@ export function bindAdminEvents() {
     };
 
     await authService.saveAuthSettings(newSettings);
+    if (showNotice) {
+      Toast.show('🔐 Switch updated & broadcasted live!', 'success');
+    }
+  };
+
+  ['auth-sw-system', 'auth-sw-google', 'auth-sw-google-phone-ver', 'auth-sw-manual-login', 'auth-sw-manual-reg', 'auth-sw-email-ver', 'auth-sw-phone-ver'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {
+      saveInAppAuthSettings(true);
+    });
+  });
+
+  document.getElementById('btn-save-auth-settings')?.addEventListener('click', async () => {
+    await saveInAppAuthSettings(false);
     Toast.show('🔐 Authentication switches saved and broadcasted live!', 'success');
     reRender();
   });
