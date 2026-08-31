@@ -562,14 +562,29 @@ class AuthService {
     return userObj;
   }
 
-  deleteUser(userId) {
-    const index = this.registeredUsers.findIndex(u => u.id === userId);
+  async deleteUser(userId) {
+    const index = this.registeredUsers.findIndex(u => u.id === userId || u.uid === userId);
+    let removed = null;
     if (index !== -1) {
-      const removed = this.registeredUsers.splice(index, 1)[0];
-      this.saveUsersDatabase();
-      return removed;
+      removed = this.registeredUsers.splice(index, 1)[0];
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mobinx_registered_users', JSON.stringify(this.registeredUsers));
+      }
     }
-    return null;
+
+    // If current logged-in user is being deleted, reset their session
+    if (this.user && (this.user.id === userId || this.user.uid === userId)) {
+      this.logout();
+    }
+
+    // Permanently remove from Cloud Firestore
+    try {
+      await firebaseService.deleteFromFirestore('users', userId);
+      firebaseService.broadcastChange('USER_DELETED', { userId });
+    } catch(e) {
+      console.warn('Firestore permanent delete note:', e.message);
+    }
+    return removed;
   }
 
   saveUsersDatabase() {

@@ -1473,7 +1473,77 @@ textarea.form-control {
 </head>
 <body>
 
-  <div class="admin-layout">
+  <!-- MASTER ADMIN AUTHENTICATION LOCK SCREEN -->
+  <div id="admin-auth-lock-screen" style="display: flex; position: fixed; inset: 0; background: radial-gradient(circle at center, #0f172a 0%, #030712 100%); z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
+    
+    <!-- Ambient Background Glow -->
+    <div style="position: absolute; top: 20%; left: 50%; transform: translateX(-50%); width: 380px; height: 380px; background: radial-gradient(circle, rgba(59, 130, 246, 0.22) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none;"></div>
+
+    <div style="background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(18px); border: 1.5px solid rgba(59, 130, 246, 0.4); border-radius: 24px; padding: 34px 28px; width: 100%; max-width: 410px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(59, 130, 246, 0.2); position: relative; z-index: 2;">
+      
+      <!-- Brand Icon & Security Shield -->
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="width: 62px; height: 62px; border-radius: 18px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.5); border: 1.5px solid rgba(56, 189, 248, 0.5);">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h2 style="font-size: 23px; font-weight: 900; color: #ffffff; margin: 0 0 4px 0; letter-spacing: 0.5px; font-family: var(--font-heading);">MOBIN X</h2>
+        <p style="font-size: 11.5px; font-weight: 800; color: #38bdf8; letter-spacing: 1.2px; text-transform: uppercase; margin: 0;">Master Admin Console</p>
+      </div>
+
+      <!-- Error Alert Box (Hidden by default) -->
+      <div id="admin-login-error" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 10px 14px; margin-bottom: 18px; font-size: 12px; color: #fca5a5; font-weight: 600; text-align: center; line-height: 1.4;"></div>
+
+      <form id="form-admin-login" style="display: flex; flex-direction: column; gap: 14px;">
+        <div>
+          <label style="display: block; font-size: 11.5px; font-weight: 700; color: #94a3b8; margin-bottom: 6px;">Administrator Email</label>
+          <input 
+            type="email" 
+            id="admin-auth-email" 
+            placeholder="mobinyt420@gmail.com" 
+            value="mobinyt420@gmail.com"
+            required 
+            style="width: 100%; box-sizing: border-box; padding: 11px 14px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; font-size: 13.5px; color: #ffffff; outline: none; transition: border-color 0.2s;"
+          />
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 11.5px; font-weight: 700; color: #94a3b8; margin-bottom: 6px;">Admin Password</label>
+          <div style="position: relative;">
+            <input 
+              type="password" 
+              id="admin-auth-pass" 
+              placeholder="Enter admin password" 
+              required 
+              style="width: 100%; box-sizing: border-box; padding: 11px 42px 11px 14px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; font-size: 13.5px; color: #ffffff; outline: none; transition: border-color 0.2s;"
+            />
+            <span id="btn-toggle-admin-pass" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 16px; user-select: none; opacity: 0.75;">👁️</span>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; cursor: pointer;">
+            <input type="checkbox" id="admin-remember-me" checked style="width: 15px; height: 15px; accent-color: #0284c7;" />
+            <span>Remember login</span>
+          </label>
+          <span style="font-size: 11px; color: #64748b;">Protected Area 🔒</span>
+        </div>
+
+        <button 
+          type="submit" 
+          id="btn-admin-submit-login" 
+          style="width: 100%; margin-top: 8px; padding: 13px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff; font-weight: 800; font-size: 14px; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4); transition: transform 0.15s ease;"
+        >
+          🔓 Access Admin Console
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <div class="admin-layout" id="admin-main-app" style="display: none;">
     
     <!-- Sidebar Navigation -->
     <aside class="admin-sidebar" id="admin-sidebar">
@@ -1546,12 +1616,18 @@ textarea.form-control {
         </div>
       </nav>
 
-      <div class="sidebar-footer">
-        <img src="assets/images/avatar_user.jpg" alt="Admin" class="admin-avatar" width="36" height="36" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'><circle cx=\'32\' cy=\'32\' r=\'32\' fill=\'%231e293b\'/><circle cx=\'32\' cy=\'24\' r=\'12\' fill=\'%233b82f6\'/><path d=\'M14 52c0-10 8-18 18-18s18 8 18 18\' fill=\'%232563eb\'/></svg>';" />
-        <div class="admin-meta">
-          <div class="name">Mr. Mobin (Admin)</div>
-          <div class="role">Master Administrator</div>
+      <div class="sidebar-footer" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden;">
+          <img src="assets/images/avatar_user.jpg" alt="Admin" class="admin-avatar" width="36" height="36" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'><circle cx=\'32\' cy=\'32\' r=\'32\' fill=\'%231e293b\'/><circle cx=\'32\' cy=\'24\' r=\'12\' fill=\'%233b82f6\'/><path d=\'M14 52c0-10 8-18 18-18s18 8 18 18\' fill=\'%232563eb\'/></svg>';" />
+          <div class="admin-meta" style="overflow: hidden;">
+            <div class="name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mr. Mobin</div>
+            <div class="role" style="font-size: 10px; color: #38bdf8;">Super Admin</div>
+          </div>
         </div>
+        <button id="btn-admin-logout" title="Logout from Admin Panel" style="background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.35); color: #f87171; border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+          <span>🚪</span>
+          <span>Logout</span>
+        </button>
       </div>
     </aside>
 
@@ -4675,12 +4751,130 @@ function bindNavigation() {
 }
 
 // ==========================================
-// 10. BOOTSTRAP
+// 10. MASTER ADMIN AUTHENTICATION CONTROLLER
+// ==========================================
+const ADMIN_MASTER_CREDENTIALS = {
+  emails: ['mobinyt420@gmail.com', 'mrmobin1m@gmail.com'],
+  passwords: ['mrmobin', 'mrmobin12@#??']
+};
+
+function isAdminAuthenticated() {
+  return localStorage.getItem('mobinx_admin_authenticated') === 'true' || 
+         sessionStorage.getItem('mobinx_admin_authenticated') === 'true';
+}
+
+function showAdminApp() {
+  const lock = document.getElementById('admin-auth-lock-screen');
+  const mainApp = document.getElementById('admin-main-app');
+  if (lock) lock.style.display = 'none';
+  if (mainApp) mainApp.style.display = 'flex';
+}
+
+function showAdminLock() {
+  const lock = document.getElementById('admin-auth-lock-screen');
+  const mainApp = document.getElementById('admin-main-app');
+  if (lock) lock.style.display = 'flex';
+  if (mainApp) mainApp.style.display = 'none';
+}
+
+function bindAdminAuthEvents() {
+  // Password Visibility Toggle
+  document.getElementById('btn-toggle-admin-pass')?.addEventListener('click', () => {
+    const input = document.getElementById('admin-auth-pass');
+    const toggleIcon = document.getElementById('btn-toggle-admin-pass');
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (toggleIcon) toggleIcon.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      if (toggleIcon) toggleIcon.textContent = '👁️';
+    }
+  });
+
+  // Admin Login Submit
+  document.getElementById('form-admin-login')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById('admin-auth-email');
+    const passInput = document.getElementById('admin-auth-pass');
+    const rememberMe = document.getElementById('admin-remember-me')?.checked ?? true;
+    const errorBox = document.getElementById('admin-login-error');
+
+    const email = (emailInput?.value || '').toLowerCase().trim();
+    const password = (passInput?.value || '').trim();
+
+    if (errorBox) errorBox.style.display = 'none';
+
+    // Verify against authorized master credentials
+    const isEmailValid = ADMIN_MASTER_CREDENTIALS.emails.includes(email);
+    const isPassValid = ADMIN_MASTER_CREDENTIALS.passwords.includes(password);
+
+    if (isEmailValid && isPassValid) {
+      if (rememberMe) {
+        localStorage.setItem('mobinx_admin_authenticated', 'true');
+        localStorage.setItem('mobinx_admin_email', email);
+      } else {
+        sessionStorage.setItem('mobinx_admin_authenticated', 'true');
+        sessionStorage.setItem('mobinx_admin_email', email);
+      }
+      showAdminApp();
+      showToast('🎉 Master Administrator authenticated successfully!', 'success');
+      return;
+    }
+
+    // Try Firebase Authentication if local check didn't match
+    try {
+      if (auth) {
+        const { signInWithEmailAndPassword } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+        await signInWithEmailAndPassword(auth, email, password);
+        if (rememberMe) {
+          localStorage.setItem('mobinx_admin_authenticated', 'true');
+          localStorage.setItem('mobinx_admin_email', email);
+        } else {
+          sessionStorage.setItem('mobinx_admin_authenticated', 'true');
+          sessionStorage.setItem('mobinx_admin_email', email);
+        }
+        showAdminApp();
+        showToast('🎉 Master Administrator authenticated via Firebase!', 'success');
+        return;
+      }
+    } catch(fbErr) {
+      console.warn('Firebase admin login notice:', fbErr.message);
+    }
+
+    // Authentication failure
+    if (errorBox) {
+      errorBox.textContent = '❌ Invalid Administrator email or password. Access Denied.';
+      errorBox.style.display = 'block';
+    }
+  });
+
+  // Admin Logout Button
+  document.getElementById('btn-admin-logout')?.addEventListener('click', () => {
+    if (confirm('Are you sure you want to logout from Admin Console?')) {
+      localStorage.removeItem('mobinx_admin_authenticated');
+      sessionStorage.removeItem('mobinx_admin_authenticated');
+      showAdminLock();
+      showToast('🚪 Logged out from Admin Console.', 'info');
+    }
+  });
+}
+
+// ==========================================
+// 11. BOOTSTRAP
 // ==========================================
 function startAdminApp() {
   try {
     initTheme();
     bindNavigation();
+    bindAdminAuthEvents();
+
+    if (isAdminAuthenticated()) {
+      showAdminApp();
+    } else {
+      showAdminLock();
+    }
+
     renderCurrentTab();
     initFirebase().catch(e => console.warn('Firebase init notice:', e));
   } catch (err) {
