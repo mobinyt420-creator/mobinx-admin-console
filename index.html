@@ -1596,6 +1596,12 @@ textarea.form-control {
           <span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Alerts</span>
         </div>
 
+        <div class="nav-item" data-tab="notifications">
+          <span class="icon">🔔</span>
+          <span>Push Notifications</span>
+          <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">FCM Live</span>
+        </div>
+
         <div class="menu-label">Master Controls</div>
         <div class="nav-item" data-tab="auth">
           <span class="icon">🔐</span>
@@ -1936,6 +1942,22 @@ async function initFirebase() {
       }
     }, (err) => console.warn('AppUpdate onSnapshot notice:', err.message));
 
+    // 8. Live Push Notifications Collection Listener
+    onSnapshot(collection(db, 'notifications'), (snapshot) => {
+      const liveNotifs = [];
+      snapshot.forEach(docSnap => {
+        liveNotifs.push({ ...docSnap.data(), id: docSnap.id });
+      });
+      if (liveNotifs.length > 0) {
+        liveNotifs.sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
+        state.notifications = liveNotifs;
+        setStorage('mobinx_admin_notifications', liveNotifs);
+        if (state.activeTab === 'notifications') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('Notifications onSnapshot notice:', err.message));
+
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
     console.warn('Firebase connection note (operating with local sync bridge):', err.message);
@@ -2106,6 +2128,7 @@ const state = {
   appUpdate: getStorage('mobinx_app_update', defaultAppUpdate),
   authSettings: getStorage('mobinx_auth_settings', defaultAuthSettings),
   dynamicProducts: getStorage('mobinx_dynamic_products', defaultDynamicProducts),
+  notifications: getStorage('mobinx_admin_notifications', []),
   users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
   userSearchQuery: '',
   modalCallback: null
@@ -3529,6 +3552,179 @@ function showToast(message, type = 'info') {
 }
 
 // ==========================================
+// TAB: PUSH NOTIFICATIONS BROADCASTER
+// ==========================================
+function renderNotifications() {
+  const notifs = state.notifications || [];
+  return `
+    <div class="tab-pane active" id="tab-notifications">
+      
+      <!-- Top Alert / Info Banner -->
+      <div style="background: linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(6, 182, 212, 0.1) 100%); border: 1.5px solid rgba(59, 130, 246, 0.35); border-radius: 16px; padding: 18px 22px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 14px; background: rgba(37, 99, 235, 0.25); display: flex; align-items: center; justify-content: center; font-size: 24px; border: 1px solid rgba(59, 130, 246, 0.4);">
+            🔔
+          </div>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 800; color: #ffffff; margin: 0 0 3px 0;">Google Firebase Real-Time Push Broadcaster</h3>
+            <p style="font-size: 12.5px; color: #94a3b8; margin: 0;">মোবাইল অ্যাপ ইনস্টল করা সকল ব্যবহারকারীর ফোনে সরাসরি ইনস্ট্যান্ট নোটিফিকেশন পাঠান।</p>
+          </div>
+        </div>
+        <div style="text-align: right; flex-shrink: 0;">
+          <span style="font-size: 11px; font-weight: 800; background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.4);">
+            🟢 Cloud Broadcaster Online
+          </span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; margin-bottom: 24px;">
+        
+        <!-- Broadcast Composer Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📢 নতুন নোটিফিকেশন তৈরি ও পাঠান</h3>
+            <p class="card-subtitle">নিচের ফর্মটি পূরণ করে সেন্ড বাটনে চাপ দিলে সকল ইউজারের ফোনে নোটিফিকেশন পৌঁছে যাবে</p>
+          </div>
+
+          <form id="form-send-push-notification" style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label class="form-label">নোটিফিকেশন টাইটেল (Title) *</label>
+              <input type="text" id="notif-input-title" class="form-control" placeholder="যেমন: 🔥 নতুন স্কোয়াড টুর্নামেন্ট শুরু হয়েছে!" required />
+            </div>
+
+            <div>
+              <label class="form-label">নোটিফিকেশন মেসেজ / বিস্তারিত (Message Body) *</label>
+              <textarea id="notif-input-msg" class="form-control" placeholder="যেমন: আজ রাত ৯টায় ফ্রি ফায়ার কাস্টম ম্যাচ। রুম কোড পেতে এখনই অ্যাপে প্রবেশ করুন!" required style="min-height: 90px;"></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label">ক্যাটাগরি (Category)</label>
+                <select id="notif-input-category" class="form-control">
+                  <option value="tournament">🏆 Tournament / Custom Room</option>
+                  <option value="deal">💎 Diamond Deal / Top-Up</option>
+                  <option value="announcement" selected>📢 General Announcement</option>
+                  <option value="shop">🛍️ Merchandise & Shop</option>
+                  <option value="update">🚀 App Update</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="form-label">টার্গেট স্ক্রিন (Target Screen)</label>
+                <select id="notif-input-target" class="form-control">
+                  <option value="tournaments">Tournaments Tab</option>
+                  <option value="topup">Diamond Top-Up Tab</option>
+                  <option value="shop">Gaming Shop Tab</option>
+                  <option value="downloads">APK Downloads Tab</option>
+                  <option value="home" selected>Home Screen</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">কাস্টম লিংক বা ব্যানার ইমেজ (Optional Image / URL)</label>
+              <input type="text" id="notif-input-extra" class="form-control" placeholder="Optional URL (e.g. https://... or image link)" />
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <button type="submit" id="btn-submit-broadcast" class="btn btn-primary" style="flex: 1; padding: 13px; font-size: 14px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+                🚀 Send Push Notification to All Users
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Live Device Preview Card -->
+        <div class="card" style="display: flex; flex-direction: column;">
+          <div class="card-header">
+            <h3 class="card-title">📱 লাইভ মোবাইল প্রিভিউ</h3>
+            <p class="card-subtitle">মোবাইলের নোটিফিকেশন ট্রে-তে ব্যবহারকারীরা যেভাবে দেখতে পাবে</p>
+          </div>
+
+          <div style="flex: 1; background: #030712; border: 1.5px solid #1e293b; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; justify-content: center; min-height: 220px;">
+            
+            <!-- Android Notification Tray Bubble -->
+            <div id="preview-notif-bubble" style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 16px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #0284c7, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #fff;">M</div>
+                  <span style="font-size: 11px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">MOBIN X GAMING</span>
+                </div>
+                <span style="font-size: 10px; color: #64748b;">now</span>
+              </div>
+              <div id="preview-title" style="font-size: 13.5px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">
+                🔥 নতুন স্কোয়াড টুর্নামেন্ট শুরু হয়েছে!
+              </div>
+              <div id="preview-desc" style="font-size: 12px; line-height: 1.45; color: #94a3b8;">
+                আজ রাত ৯টায় ফ্রি ফায়ার কাস্টম ম্যাচ। রুম কোড পেতে এখনই অ্যাপে প্রবেশ করুন!
+              </div>
+            </div>
+
+            <div style="margin-top: 16px; text-align: center;">
+              <span style="font-size: 11px; color: #64748b;">ইনস্ট্যান্ট অটোমেটেড ডেলিভারি • সাউন্ড ও ভাইব্রেশন সাপোর্টেড</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Broadcast History Section -->
+      <div class="card">
+        <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <h3 class="card-title">📜 পূর্ববর্তী নোটিফিকেশন হিস্ট্রি (${notifs.length})</h3>
+            <p class="card-subtitle">সম্প্রতি পাঠানো সকল নোটিফিকেশনের রেকর্ড</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1.5px solid var(--border-color); text-align: left;">
+                <th style="padding: 12px;">তারিখ ও সময়</th>
+                <th style="padding: 12px;">ক্যাটাগরি</th>
+                <th style="padding: 12px;">টাইটেল ও বিস্তারিত</th>
+                <th style="padding: 12px;">টার্গেট স্ক্রিন</th>
+                <th style="padding: 12px; text-align: right;">অ্যাকশন</th>
+              </tr>
+            </thead>
+            <tbody id="notifs-history-table-body">
+              ${notifs.length === 0 ? `
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    📭 এখনো কোনো নোটিফিকেশন ব্রডকাস্ট পাঠানো হয়নি। উপরের ফর্ম থেকে প্রথম নোটিফিকেশন পাঠান!
+                  </td>
+                </tr>
+              ` : notifs.map((n) => {
+                const dateStr = n.timestamp ? new Date(n.timestamp).toLocaleString() : 'Just now';
+                const catBadge = n.type === 'tournament' ? '🏆 Tournament' : (n.type === 'deal' ? '💎 Top-Up Deal' : (n.type === 'shop' ? '🛍️ Shop' : '📢 Notice'));
+                return `
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 12px; font-size: 12px; color: var(--text-muted); white-space: nowrap;">${dateStr}</td>
+                    <td style="padding: 12px; font-size: 11.5px;"><span class="badge" style="background: rgba(59,130,246,0.2); color: #60a5fa;">${catBadge}</span></td>
+                    <td style="padding: 12px;">
+                      <div style="font-weight: 800; color: #fff; font-size: 13px;">${n.title || ''}</div>
+                      <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${n.message || n.desc || ''}</div>
+                    </td>
+                    <td style="padding: 12px; font-size: 12px; color: #38bdf8;">${n.targetUrl || n.actionUrl || 'home'}</td>
+                    <td style="padding: 12px; text-align: right;">
+                      <button class="btn btn-danger btn-sm btn-delete-notif" data-id="${n.id}" style="padding: 4px 10px; font-size: 11px;">
+                        🗑️ Delete
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
 // 8. TAB CONTROLLER & EVENT BINDINGS
 // ==========================================
 function renderCurrentTab() {
@@ -3568,6 +3764,10 @@ function renderCurrentTab() {
     case 'urls':
       if (title) title.textContent = 'Notices & Announcement Modals';
       content.innerHTML = renderSystemUrls();
+      break;
+    case 'notifications':
+      if (title) title.textContent = 'Push Notifications Broadcaster';
+      content.innerHTML = renderNotifications();
       break;
     case 'users':
       if (title) title.textContent = 'Users Directory';
@@ -4667,6 +4867,86 @@ function bindCurrentTabEvents() {
 
         await syncToFirestore('config', 'dynamic_products', { products: state.dynamicProducts });
         broadcastSync('DYNAMIC_PRODUCTS_UPDATED', state.dynamicProducts);
+      }
+    });
+  });
+
+  // Push Notifications: Live Typing Preview
+  const titleInput = document.getElementById('notif-input-title');
+  const msgInput = document.getElementById('notif-input-msg');
+  const previewTitle = document.getElementById('preview-title');
+  const previewDesc = document.getElementById('preview-desc');
+
+  titleInput?.addEventListener('input', () => {
+    if (previewTitle) previewTitle.textContent = titleInput.value.trim() || '🔥 নতুন স্কোয়াড টুর্নামেন্ট শুরু হয়েছে!';
+  });
+  msgInput?.addEventListener('input', () => {
+    if (previewDesc) previewDesc.textContent = msgInput.value.trim() || 'আজ রাত ৯টায় ফ্রি ফায়ার কাস্টম ম্যাচ। রুম কোড পেতে এখনই অ্যাপে প্রবেশ করুন!';
+  });
+
+  // Push Notifications: Submit Broadcast Form
+  const formNotif = document.getElementById('form-send-push-notification');
+  formNotif?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btnSubmit = document.getElementById('btn-submit-broadcast');
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = '⏳ Broadcasting to all devices...';
+    }
+
+    const titleVal = titleInput.value.trim();
+    const msgVal = msgInput.value.trim();
+    const catVal = document.getElementById('notif-input-category')?.value || 'announcement';
+    const targetVal = document.getElementById('notif-input-target')?.value || 'home';
+    const extraVal = document.getElementById('notif-input-extra')?.value.trim() || '';
+
+    const notifId = `notif_${Date.now()}`;
+    const newNotif = {
+      id: notifId,
+      title: titleVal,
+      message: msgVal,
+      desc: msgVal,
+      type: catVal,
+      targetUrl: targetVal,
+      actionUrl: targetVal,
+      extraUrl: extraVal,
+      imageUrl: extraVal,
+      timestamp: Date.now(),
+      createdAt: Date.now(),
+      active: true
+    };
+
+    // Update state & storage
+    state.notifications.unshift(newNotif);
+    setStorage('mobinx_admin_notifications', state.notifications);
+
+    // Sync to Firestore notifications collection
+    await syncToFirestore('notifications', notifId, newNotif);
+
+    // Update config/notices for immediate client listening
+    await syncToFirestore('config', 'notices', {
+      pushNotification: newNotif,
+      lastUpdated: Date.now()
+    });
+
+    // Broadcast locally
+    broadcastSync('PUSH_NOTIFICATION_SENT', newNotif);
+
+    showToast('🚀 Push Notification successfully broadcasted to all users!', 'success');
+    renderCurrentTab();
+  });
+
+  // Push Notifications: Delete from History
+  document.querySelectorAll('.btn-delete-notif').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (confirm('Delete this notification from history?')) {
+        state.notifications = state.notifications.filter(x => x.id !== id);
+        setStorage('mobinx_admin_notifications', state.notifications);
+        showToast('Notification deleted from history.', 'warning');
+        renderCurrentTab();
+
+        await deleteFromFirestore('notifications', id);
       }
     });
   });

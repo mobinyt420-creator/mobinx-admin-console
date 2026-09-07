@@ -8,8 +8,11 @@ import { openExternalStore } from '../services/browserService.js';
 let activeAuthMode = 'welcome'; // 'welcome' | 'auth-select'
 let pendingGoogleUser = null;
 let pendingPhoneAuth = null;
+let pendingEmailVerificationUser = null;
 let otpCountdownTimer = null;
 let otpTimeRemaining = 60;
+let emailVerificationTimer = null;
+let emailVerificationTimeRemaining = 60;
 
 export function renderOnboardingView() {
   if (activeAuthMode === 'auth-select') {
@@ -490,6 +493,53 @@ function renderAuthSelectionView() {
         </div>
       </div>
     </div>
+
+    <!-- 6. EMAIL VERIFICATION MODAL -->
+    <div id="modal-email-verification" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center; padding: 18px;">
+      <div style="background: #0f172a; border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 22px; padding: 22px 18px; width: 100%; max-width: 360px; box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6); text-align: center; color: #ffffff;">
+        <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(56, 189, 248, 0.15); border: 1.5px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px auto; box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);">
+          ✉️
+        </div>
+        <h3 style="font-size: 18px; font-weight: 800; color: #ffffff; margin: 0 0 4px 0;">Verify Your Email</h3>
+        <p style="font-size: 12px; color: #94a3b8; margin: 0 0 14px 0; line-height: 1.5;">
+          A verification link has been sent to:<br/>
+          <span id="ev-email-display" style="color: #38bdf8; font-weight: 700; word-break: break-all;">gamer@gmail.com</span>
+        </p>
+
+        <div style="background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 10px 12px; text-align: left; margin-bottom: 14px; font-size: 11.5px; color: #cbd5e1; line-height: 1.45;">
+          <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+            <span>1️⃣</span>
+            <span>Open your <b>Gmail / Email app</b></span>
+          </div>
+          <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+            <span>2️⃣</span>
+            <span>Click the verification link from <b>Firebase / Mobin X</b></span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <span>ℹ️</span>
+            <span style="color: #94a3b8;">Check your <b>Spam / Junk</b> folder if not found in Inbox.</span>
+          </div>
+        </div>
+
+        <div id="ev-status-msg" style="display: none; font-size: 11.5px; padding: 9px 12px; border-radius: 10px; margin-bottom: 12px; font-weight: 600; text-align: left;"></div>
+
+        <button type="button" id="btn-ev-check" style="width: 100%; height: 46px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); border: none; border-radius: 12px; font-size: 14px; font-weight: 800; color: #ffffff; cursor: pointer; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); margin-bottom: 12px;">
+          ✅ I Have Verified / Continue
+        </button>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 0 4px;">
+          <button type="button" id="btn-ev-cancel" style="background: none; border: none; color: #94a3b8; font-weight: 600; cursor: pointer;">
+            Back to Login
+          </button>
+          <div>
+            <button type="button" id="btn-ev-resend" style="background: none; border: none; color: #38bdf8; font-weight: 700; cursor: pointer; display: none;">
+              Resend Email
+            </button>
+            <span id="ev-timer-display" style="color: #64748b; font-weight: 600;">Resend in 60s</span>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -712,8 +762,20 @@ export function bindOnboardingEvents() {
     try {
       const user = await authService.loginWithEmailPassword(email, password);
       closeModal('modal-manual-login');
-      Toast.show(`🎉 Welcome back, ${user.username}!`, 'success');
-      stateManager.navigate('home');
+
+      const authSettings = authService.getAuthSettings();
+      const isEmailVerificationOn = authSettings.manualEmailVerificationEnabled === true;
+
+      // If manual email verification is ON and user email is not yet verified (and not Admin)
+      if (isEmailVerificationOn && !user.emailVerified && !user.isAdmin) {
+        try { await firebaseService.sendEmailVerification(); } catch (e) {}
+        startEmailVerificationFlow(email, user, () => {
+          stateManager.navigate('home');
+        });
+      } else {
+        Toast.show(`🎉 Welcome back, ${user.username}!`, 'success');
+        stateManager.navigate('home');
+      }
     } catch (err) {
       if (errorBox) {
         errorBox.textContent = err.message || 'Incorrect email or password.';
@@ -796,25 +858,33 @@ export function bindOnboardingEvents() {
         startPhoneOtpFlow(cleanPhone, async () => {
           const user = await authService.registerWithEmailPassword(fullName, email, cleanPhone, password, {
             phoneVerified: true,
-            emailVerified: isEmailVerificationOn ? false : false
+            emailVerified: false
           });
           if (isEmailVerificationOn) {
             try { await firebaseService.sendEmailVerification(); } catch (e) {}
+            startEmailVerificationFlow(email, user, () => {
+              stateManager.navigate('home');
+            });
+          } else {
+            Toast.show(`🎉 Welcome to Mobin X, ${user.username}!`, 'success');
+            stateManager.navigate('home');
           }
-          Toast.show(`🎉 Welcome to Mobin X, ${user.username}!`, 'success');
-          stateManager.navigate('home');
         });
       } else {
         const user = await authService.registerWithEmailPassword(fullName, email, cleanPhone, password, {
           phoneVerified: false,
           emailVerified: false
         });
+        closeModal('modal-manual-register');
         if (isEmailVerificationOn) {
           try { await firebaseService.sendEmailVerification(); } catch (e) {}
+          startEmailVerificationFlow(email, user, () => {
+            stateManager.navigate('home');
+          });
+        } else {
+          Toast.show(`🎉 Welcome to Mobin X, ${user.username}!`, 'success');
+          stateManager.navigate('home');
         }
-        closeModal('modal-manual-register');
-        Toast.show(`🎉 Welcome to Mobin X, ${user.username}!`, 'success');
-        stateManager.navigate('home');
       }
     } catch (err) {
       if (errorBox) {
@@ -940,6 +1010,137 @@ export function bindOnboardingEvents() {
       }
     }
   });
+
+  // --- 6. EMAIL VERIFICATION MODAL EVENTS ---
+  document.getElementById('btn-ev-cancel')?.addEventListener('click', () => {
+    closeModal('modal-email-verification');
+    stopEmailVerificationCountdown();
+    pendingEmailVerificationUser = null;
+    authService.logout();
+    Toast.show('Please verify your email before logging in.', 'info');
+  });
+
+  document.getElementById('btn-ev-resend')?.addEventListener('click', async () => {
+    const statusMsg = document.getElementById('ev-status-msg');
+    try {
+      Toast.show('Resending verification email...', 'info');
+      await firebaseService.sendEmailVerification();
+      startEmailVerificationCountdown();
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(16, 185, 129, 0.2)';
+        statusMsg.style.color = '#6ee7b7';
+        statusMsg.textContent = '✅ Verification email resent! Please check your Inbox and Spam folder.';
+      }
+      Toast.show('Verification email resent!', 'success');
+    } catch (err) {
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(239, 68, 68, 0.2)';
+        statusMsg.style.color = '#fca5a5';
+        statusMsg.textContent = err.message || 'Could not resend email link.';
+      }
+      Toast.show(err.message || 'Could not resend verification email.', 'warning');
+    }
+  });
+
+  document.getElementById('btn-ev-check')?.addEventListener('click', async () => {
+    const checkBtn = document.getElementById('btn-ev-check');
+    const statusMsg = document.getElementById('ev-status-msg');
+
+    if (checkBtn) {
+      checkBtn.disabled = true;
+      checkBtn.textContent = 'Checking verification...';
+    }
+    if (statusMsg) statusMsg.style.display = 'none';
+
+    try {
+      const isVerified = await authService.checkEmailVerification();
+      if (isVerified) {
+        closeModal('modal-email-verification');
+        stopEmailVerificationCountdown();
+        const user = authService.getCurrentUser();
+        Toast.show(`🎉 Email verified! Welcome to Mobin X, ${user.username || 'Player'}!`, 'success');
+        
+        if (pendingEmailVerificationUser && typeof pendingEmailVerificationUser.onSuccess === 'function') {
+          pendingEmailVerificationUser.onSuccess();
+        } else {
+          stateManager.navigate('home');
+        }
+        pendingEmailVerificationUser = null;
+      } else {
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = 'rgba(245, 158, 11, 0.2)';
+          statusMsg.style.color = '#fcd34d';
+          statusMsg.textContent = '⚠️ Email is not verified yet. Please open Gmail, click the link sent from Firebase / Mobin X, and then click this button again.';
+        }
+        if (checkBtn) {
+          checkBtn.disabled = false;
+          checkBtn.textContent = '✅ I Have Verified / Continue';
+        }
+      }
+    } catch (err) {
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(239, 68, 68, 0.2)';
+        statusMsg.style.color = '#fca5a5';
+        statusMsg.textContent = err.message || 'Error checking verification status.';
+      }
+      if (checkBtn) {
+        checkBtn.disabled = false;
+        checkBtn.textContent = '✅ I Have Verified / Continue';
+      }
+    }
+  });
+}
+
+function startEmailVerificationFlow(email, userProfile, onSuccess) {
+  pendingEmailVerificationUser = { email, userProfile, onSuccess };
+  const emailDisplay = document.getElementById('ev-email-display');
+  if (emailDisplay) emailDisplay.textContent = email;
+
+  const statusMsg = document.getElementById('ev-status-msg');
+  if (statusMsg) statusMsg.style.display = 'none';
+
+  const checkBtn = document.getElementById('btn-ev-check');
+  if (checkBtn) {
+    checkBtn.disabled = false;
+    checkBtn.textContent = '✅ I Have Verified / Continue';
+  }
+
+  openModal('modal-email-verification');
+  startEmailVerificationCountdown();
+}
+
+function startEmailVerificationCountdown() {
+  stopEmailVerificationCountdown();
+  emailVerificationTimeRemaining = 60;
+  const resendBtn = document.getElementById('btn-ev-resend');
+  const timerDisplay = document.getElementById('ev-timer-display');
+
+  if (resendBtn) resendBtn.style.display = 'none';
+  if (timerDisplay) {
+    timerDisplay.style.display = 'inline';
+    timerDisplay.textContent = `Resend in ${emailVerificationTimeRemaining}s`;
+  }
+
+  emailVerificationTimer = setInterval(() => {
+    emailVerificationTimeRemaining--;
+    if (timerDisplay) timerDisplay.textContent = `Resend in ${emailVerificationTimeRemaining}s`;
+    if (emailVerificationTimeRemaining <= 0) {
+      stopEmailVerificationCountdown();
+      if (timerDisplay) timerDisplay.style.display = 'none';
+      if (resendBtn) resendBtn.style.display = 'inline';
+    }
+  }, 1000);
+}
+
+function stopEmailVerificationCountdown() {
+  if (emailVerificationTimer) {
+    clearInterval(emailVerificationTimer);
+    emailVerificationTimer = null;
+  }
 }
 
 function startPhoneOtpFlow(phoneNumber, onSuccess) {

@@ -249,6 +249,27 @@ export async function sendEmailVerificationFirebase() {
   }
 }
 
+// Check Email Verification Status (Reloads Firebase currentUser)
+export async function checkEmailVerificationFirebase() {
+  if (!isFirebaseInitialized) await initFirebase();
+  if (!auth || !auth.currentUser) return false;
+
+  try {
+    const { reload } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+    await reload(auth.currentUser);
+    return auth.currentUser.emailVerified === true;
+  } catch (error) {
+    console.warn('Check email verification error:', error.code, error.message);
+    try {
+      if (auth.currentUser && typeof auth.currentUser.reload === 'function') {
+        await auth.currentUser.reload();
+        return auth.currentUser.emailVerified === true;
+      }
+    } catch (e) {}
+    return auth.currentUser ? auth.currentUser.emailVerified === true : false;
+  }
+}
+
 // Phone Verification with Firebase Recaptcha / OTP
 let confirmationResultRef = null;
 
@@ -495,6 +516,7 @@ export const firebaseService = {
   loginWithEmailPassword: loginWithEmailPasswordFirebase,
   sendPasswordReset: sendPasswordResetFirebase,
   sendEmailVerification: sendEmailVerificationFirebase,
+  checkEmailVerification: checkEmailVerificationFirebase,
   sendPhoneOtp: sendPhoneOtpFirebase,
   verifyPhoneOtp: verifyPhoneOtpFirebase,
   deleteFirebaseUser,

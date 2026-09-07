@@ -251,7 +251,14 @@ class AuthService {
 
     this.user = { ...userProfile };
     this.persistSession();
-    this.setOnboardingCompleted(true);
+    
+    // Only complete onboarding if email verification is NOT required or already verified
+    const needsEmailVer = (this.authSettings.manualEmailVerificationEnabled === true) && !userProfile.emailVerified && !isAdmin;
+    if (!needsEmailVer) {
+      this.setOnboardingCompleted(true);
+    } else {
+      this.setOnboardingCompleted(false);
+    }
 
     // 4. Push to Cloud Firestore (Never storing password!)
     await this.syncUserToFirestore(this.user);
@@ -313,12 +320,47 @@ class AuthService {
 
     this.user = { ...existing };
     this.persistSession();
-    this.setOnboardingCompleted(true);
+    
+    // Check if manual email verification is required
+    const needsEmailVer = (this.authSettings.manualEmailVerificationEnabled === true) && !existing.emailVerified && !isAdmin;
+    if (!needsEmailVer) {
+      this.setOnboardingCompleted(true);
+    } else {
+      this.setOnboardingCompleted(false);
+    }
 
     // Sync to Cloud Firestore
     await this.syncUserToFirestore(this.user);
 
     return this.user;
+  }
+
+  // --- EMAIL VERIFICATION CHECK & RESEND ---
+  async checkEmailVerification() {
+    try {
+      const isVerified = await firebaseService.checkEmailVerification();
+      if (isVerified && this.user) {
+        this.user.emailVerified = true;
+        const cleanEmail = (this.user.email || '').toLowerCase().trim();
+        const idx = this.registeredUsers.findIndex(u => (u.uid && u.uid === this.user.uid) || (u.email && u.email.toLowerCase() === cleanEmail));
+        if (idx >= 0) {
+          this.registeredUsers[idx].emailVerified = true;
+          this.saveUsersDatabase();
+        }
+        this.persistSession();
+        this.setOnboardingCompleted(true);
+        await this.syncUserToFirestore(this.user);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('Check email verification notice:', e.message);
+      return false;
+    }
+  }
+
+  async resendEmailVerification() {
+    return await firebaseService.sendEmailVerification();
   }
 
   // --- PASSWORD RESET ---
@@ -465,7 +507,14 @@ class AuthService {
   hasCompletedOnboarding() {
     if (typeof localStorage === 'undefined') return false;
     const onboarded = localStorage.getItem('mobinx_onboarded');
-    return !!(onboarded && this.user && this.user.email && this.user.email !== 'guest@mobinx.app');
+    if (!onboarded || !this.user || !this.user.email || this.user.email === 'guest@mobinx.app') {
+      return false;
+    }
+    // If manual email verification is active, ensure user is verified or admin
+    if (this.authSettings && this.authSettings.manualEmailVerificationEnabled === true && this.user.authProvider === 'manual' && !this.user.emailVerified && !this.isAdmin()) {
+      return false;
+    }
+    return true;
   }
 
   setOnboardingCompleted(completed = true) {
