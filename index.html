@@ -1727,6 +1727,9 @@ const firebaseConfig = {
 let app = null;
 let auth = null;
 let db = null;
+let fsDoc = null;
+let fsSetDoc = null;
+let fsDeleteDoc = null;
 let isFirebaseConnected = false;
 
 // Zero-Latency Local & Cross-Tab Broadcast Bus
@@ -1795,6 +1798,9 @@ async function initFirebase() {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    fsDoc = doc;
+    fsSetDoc = setDoc;
+    fsDeleteDoc = deleteDoc;
     isFirebaseConnected = true;
 
     console.log('⚡ Firebase Cloud Connected to Project:', firebaseConfig.projectId);
@@ -1982,8 +1988,12 @@ function updateFirebaseStatusBadge(connected) {
 async function syncToFirestore(collectionName, docId, data) {
   if (!db) return false;
   try {
-    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-    await setDoc(doc(db, collectionName, docId), data, { merge: true });
+    if (!fsDoc || !fsSetDoc) {
+      const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+      fsDoc = doc;
+      fsSetDoc = setDoc;
+    }
+    await fsSetDoc(fsDoc(db, collectionName, docId), data, { merge: true });
     return true;
   } catch (err) {
     console.warn(`Firestore sync note [${collectionName}]:`, err.message);
@@ -1994,8 +2004,12 @@ async function syncToFirestore(collectionName, docId, data) {
 async function deleteFromFirestore(collectionName, docId) {
   if (!db) return false;
   try {
-    const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-    await deleteDoc(doc(db, collectionName, docId));
+    if (!fsDoc || !fsDeleteDoc) {
+      const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+      fsDoc = doc;
+      fsDeleteDoc = deleteDoc;
+    }
+    await fsDeleteDoc(fsDoc(db, collectionName, docId));
     return true;
   } catch (err) {
     console.warn(`Firestore delete note [${collectionName}]:`, err.message);
@@ -3658,6 +3672,9 @@ function renderNotifications() {
               <div id="preview-desc" style="font-size: 12px; line-height: 1.45; color: #94a3b8;">
                 আজ রাত ৯টায় ফ্রি ফায়ার কাস্টম ম্যাচ। রুম কোড পেতে এখনই অ্যাপে প্রবেশ করুন!
               </div>
+              <div id="preview-banner-container" style="display: none; margin-top: 10px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+                <img id="preview-banner-img" src="" alt="Banner Preview" style="width: 100%; max-height: 130px; object-fit: cover; display: block;" onerror="this.parentElement.style.display='none'" />
+              </div>
             </div>
 
             <div style="margin-top: 16px; text-align: center;">
@@ -3673,7 +3690,7 @@ function renderNotifications() {
         <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
           <div>
             <h3 class="card-title">📜 পূর্ববর্তী নোটিফিকেশন হিস্ট্রি (${notifs.length})</h3>
-            <p class="card-subtitle">সম্প্রতি পাঠানো সকল নোটিফিকেশনের রেকর্ড</p>
+            <p class="card-subtitle">সম্প্রতি পাঠানো সকল নোটিফিকেশনের রেকর্ড — যেকোনোটি আবার পাঠাতে 'Resend' চাপুন</p>
           </div>
         </div>
 
@@ -3698,17 +3715,27 @@ function renderNotifications() {
               ` : notifs.map((n) => {
                 const dateStr = n.timestamp ? new Date(n.timestamp).toLocaleString() : 'Just now';
                 const catBadge = n.type === 'tournament' ? '🏆 Tournament' : (n.type === 'deal' ? '💎 Top-Up Deal' : (n.type === 'shop' ? '🛍️ Shop' : '📢 Notice'));
+                const imgUrl = n.imageUrl || n.extraUrl || '';
+                const hasImg = imgUrl && (imgUrl.match(/\.(jpeg|jpg|gif|png|webp)($|\?)/i) || imgUrl.startsWith('data:image') || imgUrl.includes('assets/'));
                 return `
                   <tr style="border-bottom: 1px solid var(--border-color);">
                     <td style="padding: 12px; font-size: 12px; color: var(--text-muted); white-space: nowrap;">${dateStr}</td>
                     <td style="padding: 12px; font-size: 11.5px;"><span class="badge" style="background: rgba(59,130,246,0.2); color: #60a5fa;">${catBadge}</span></td>
                     <td style="padding: 12px;">
-                      <div style="font-weight: 800; color: #fff; font-size: 13px;">${n.title || ''}</div>
-                      <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${n.message || n.desc || ''}</div>
+                      <div style="display: flex; gap: 10px; align-items: center;">
+                        ${hasImg ? `<img src="${imgUrl}" style="width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--border-color);" onerror="this.style.display='none'" />` : ''}
+                        <div>
+                          <div style="font-weight: 800; color: #fff; font-size: 13px;">${n.title || ''}</div>
+                          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${n.message || n.desc || ''}</div>
+                        </div>
+                      </div>
                     </td>
                     <td style="padding: 12px; font-size: 12px; color: #38bdf8;">${n.targetUrl || n.actionUrl || 'home'}</td>
-                    <td style="padding: 12px; text-align: right;">
-                      <button class="btn btn-danger btn-sm btn-delete-notif" data-id="${n.id}" style="padding: 4px 10px; font-size: 11px;">
+                    <td style="padding: 12px; text-align: right; white-space: nowrap;">
+                      <button class="btn btn-primary btn-sm btn-resend-notif" data-id="${n.id}" style="padding: 5px 12px; font-size: 11px; margin-right: 6px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+                        🔄 Resend
+                      </button>
+                      <button class="btn btn-danger btn-sm btn-delete-notif" data-id="${n.id}" style="padding: 5px 10px; font-size: 11px;">
                         🗑️ Delete
                       </button>
                     </td>
@@ -4874,14 +4901,26 @@ function bindCurrentTabEvents() {
   // Push Notifications: Live Typing Preview
   const titleInput = document.getElementById('notif-input-title');
   const msgInput = document.getElementById('notif-input-msg');
+  const extraInput = document.getElementById('notif-input-extra');
   const previewTitle = document.getElementById('preview-title');
   const previewDesc = document.getElementById('preview-desc');
+  const previewBannerContainer = document.getElementById('preview-banner-container');
+  const previewBannerImg = document.getElementById('preview-banner-img');
 
   titleInput?.addEventListener('input', () => {
     if (previewTitle) previewTitle.textContent = titleInput.value.trim() || '🔥 নতুন স্কোয়াড টুর্নামেন্ট শুরু হয়েছে!';
   });
   msgInput?.addEventListener('input', () => {
     if (previewDesc) previewDesc.textContent = msgInput.value.trim() || 'আজ রাত ৯টায় ফ্রি ফায়ার কাস্টম ম্যাচ। রুম কোড পেতে এখনই অ্যাপে প্রবেশ করুন!';
+  });
+  extraInput?.addEventListener('input', () => {
+    const val = (extraInput.value || '').trim();
+    if (val && (val.startsWith('http') || val.startsWith('data:image') || val.includes('assets/'))) {
+      if (previewBannerImg) previewBannerImg.src = val;
+      if (previewBannerContainer) previewBannerContainer.style.display = 'block';
+    } else {
+      if (previewBannerContainer) previewBannerContainer.style.display = 'none';
+    }
   });
 
   // Push Notifications: Submit Broadcast Form
@@ -4898,11 +4937,13 @@ function bindCurrentTabEvents() {
     const msgVal = msgInput.value.trim();
     const catVal = document.getElementById('notif-input-category')?.value || 'announcement';
     const targetVal = document.getElementById('notif-input-target')?.value || 'home';
-    const extraVal = document.getElementById('notif-input-extra')?.value.trim() || '';
+    const extraVal = extraInput?.value.trim() || '';
 
     const notifId = `notif_${Date.now()}`;
+    const broadcastId = `bc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const newNotif = {
       id: notifId,
+      broadcastId: broadcastId,
       title: titleVal,
       message: msgVal,
       desc: msgVal,
@@ -4920,20 +4961,59 @@ function bindCurrentTabEvents() {
     state.notifications.unshift(newNotif);
     setStorage('mobinx_admin_notifications', state.notifications);
 
-    // Sync to Firestore notifications collection
-    await syncToFirestore('notifications', notifId, newNotif);
+    // Parallel sync for sub-second delivery
+    await Promise.all([
+      syncToFirestore('notifications', notifId, newNotif),
+      syncToFirestore('config', 'notices', {
+        pushNotification: newNotif,
+        broadcastId: broadcastId,
+        lastUpdated: Date.now()
+      })
+    ]);
 
-    // Update config/notices for immediate client listening
-    await syncToFirestore('config', 'notices', {
-      pushNotification: newNotif,
-      lastUpdated: Date.now()
-    });
-
-    // Broadcast locally
+    // Broadcast locally across tabs
     broadcastSync('PUSH_NOTIFICATION_SENT', newNotif);
 
     showToast('🚀 Push Notification successfully broadcasted to all users!', 'success');
     renderCurrentTab();
+  });
+
+  // Push Notifications: Resend
+  document.querySelectorAll('.btn-resend-notif').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const notif = state.notifications.find(x => x.id === id);
+      if (!notif) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Resending...';
+
+      const broadcastId = `bc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const resentNotif = {
+        ...notif,
+        broadcastId: broadcastId,
+        timestamp: Date.now(),
+        createdAt: Date.now(),
+        active: true
+      };
+
+      // Move to top of history
+      state.notifications = [resentNotif, ...state.notifications.filter(x => x.id !== notif.id)];
+      setStorage('mobinx_admin_notifications', state.notifications);
+
+      await Promise.all([
+        syncToFirestore('notifications', notif.id, resentNotif),
+        syncToFirestore('config', 'notices', {
+          pushNotification: resentNotif,
+          broadcastId: broadcastId,
+          lastUpdated: Date.now()
+        })
+      ]);
+
+      broadcastSync('PUSH_NOTIFICATION_SENT', resentNotif);
+      showToast(`🔄 Notification "${resentNotif.title}" resent to all devices instantly!`, 'success');
+      renderCurrentTab();
+    });
   });
 
   // Push Notifications: Delete from History
