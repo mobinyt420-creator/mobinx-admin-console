@@ -2549,6 +2549,32 @@ function renderTournaments() {
               <input type="number" id="new-t-slots" class="form-control" value="48" min="2" max="100" required />
             </div>
 
+            <!-- Optional Dynamic Prize Breakdown (1st, 2nd, 3rd, 4th Place) -->
+            <div class="form-group" style="grid-column: 1 / -1; background: var(--bg-card-hover); padding: 14px; border-radius: var(--radius-md); border: 1.5px dashed var(--border-light);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="form-label" style="margin: 0; color: #f59e0b;">🏆 Custom Rank Prize Breakdown (Optional)</label>
+                <span style="font-size: 11px; color: var(--text-muted);">Set custom reward for 1st, 2nd, 3rd, 4th place</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; color: #f59e0b; font-weight: 800; display: block; margin-bottom: 4px;">🥇 1st Place</label>
+                  <input type="text" id="tier-rank-1" class="form-control" placeholder="e.g. 300 Diamonds" />
+                </div>
+                <div>
+                  <label style="font-size: 11px; color: #60a5fa; font-weight: 800; display: block; margin-bottom: 4px;">🥈 2nd Place</label>
+                  <input type="text" id="tier-rank-2" class="form-control" placeholder="e.g. 150 Diamonds" />
+                </div>
+                <div>
+                  <label style="font-size: 11px; color: #34d399; font-weight: 800; display: block; margin-bottom: 4px;">🥉 3rd Place</label>
+                  <input type="text" id="tier-rank-3" class="form-control" placeholder="e.g. 50 Diamonds" />
+                </div>
+                <div>
+                  <label style="font-size: 11px; color: #a78bfa; font-weight: 800; display: block; margin-bottom: 4px;">🎖️ 4th Place</label>
+                  <input type="text" id="tier-rank-4" class="form-control" placeholder="e.g. 25 Diamonds (Optional)" />
+                </div>
+              </div>
+            </div>
+
             <div class="form-group" style="grid-column: 1 / -1;">
               <label class="form-label">Banner Image (URL or Default)</label>
               <input type="text" id="new-t-banner" class="form-control" placeholder="assets/images/banner_esports.jpg or https://..." value="assets/images/banner_esports.jpg" />
@@ -2576,6 +2602,7 @@ function renderTournaments() {
             const isLive = !!t.isRoomReleased || t.status === 'LIVE' || t.status === 'Live';
             const roomIdVal = t.roomId || (t.roomCredentials && t.roomCredentials.roomId) || '';
             const roomPassVal = t.roomPass || (t.roomCredentials && t.roomCredentials.password) || '';
+            const participantsCount = (t.participants && t.participants.length) || t.slotsFilled || 0;
 
             return `
               <div style="background: var(--bg-body); border: 1.5px solid ${isLive ? '#ef4444' : 'var(--border-color)'}; border-radius: var(--radius-lg); padding: 18px;">
@@ -2596,6 +2623,9 @@ function renderTournaments() {
                   </div>
 
                   <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary btn-view-participants" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px; color: #3b82f6; border-color: rgba(59, 130, 246, 0.4);">
+                      👥 Registered Players (${participantsCount})
+                    </button>
                     <button class="btn btn-secondary btn-toggle-tourn-status" data-id="${t.id}" style="padding: 6px 12px; font-size: 12px;">
                       ${t.isActive === false || t.status === 'INACTIVE' || t.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
                     </button>
@@ -3649,12 +3679,20 @@ function openAdminModal(title, bodyHtml, onSaveCallback) {
   const modalTitle = document.getElementById('admin-modal-title');
   const modalBody = document.getElementById('admin-modal-body');
   const btnSave = document.getElementById('admin-modal-save-btn');
+  const btnCancel = document.getElementById('admin-modal-cancel-btn');
 
   if (!overlay || !modalTitle || !modalBody) return;
 
   modalTitle.textContent = title;
   modalBody.innerHTML = bodyHtml;
   state.modalCallback = onSaveCallback;
+
+  if (btnSave) {
+    btnSave.style.display = onSaveCallback ? 'inline-flex' : 'none';
+  }
+  if (btnCancel) {
+    btnCancel.textContent = onSaveCallback ? 'Cancel' : 'Close';
+  }
 
   overlay.classList.add('active');
 }
@@ -3663,6 +3701,10 @@ function closeAdminModal() {
   const overlay = document.getElementById('admin-modal-overlay');
   if (overlay) overlay.classList.remove('active');
   state.modalCallback = null;
+  const btnSave = document.getElementById('admin-modal-save-btn');
+  const btnCancel = document.getElementById('admin-modal-cancel-btn');
+  if (btnSave) btnSave.style.display = 'inline-flex';
+  if (btnCancel) btnCancel.textContent = 'Cancel';
 }
 
 // ==========================================
@@ -3991,6 +4033,17 @@ function bindCurrentTabEvents() {
     const maxSlots = parseInt(document.getElementById('new-t-slots').value) || 48;
     const bannerUrl = document.getElementById('new-t-banner').value || 'assets/images/banner_esports.jpg';
 
+    // Optional dynamic prize pool breakdown
+    const prizeTiers = [];
+    const r1 = document.getElementById('tier-rank-1')?.value.trim();
+    const r2 = document.getElementById('tier-rank-2')?.value.trim();
+    const r3 = document.getElementById('tier-rank-3')?.value.trim();
+    const r4 = document.getElementById('tier-rank-4')?.value.trim();
+    if (r1) prizeTiers.push({ rank: '1st Place', place: '1st Place', prize: r1, amount: r1 });
+    if (r2) prizeTiers.push({ rank: '2nd Place', place: '2nd Place', prize: r2, amount: r2 });
+    if (r3) prizeTiers.push({ rank: '3rd Place', place: '3rd Place', prize: r3, amount: r3 });
+    if (r4) prizeTiers.push({ rank: '4th Place', place: '4th Place', prize: r4, amount: r4 });
+
     const newTourn = {
       id: 'tourn-' + Date.now(),
       title,
@@ -4003,6 +4056,7 @@ function bindCurrentTabEvents() {
       entryFee: entryType === 'Free' ? 'Free' : entryVal,
       prizePool: prizeCurrency + ' ' + prizePool,
       prizeCurrency,
+      prizeTiers,
       slotsTotal: maxSlots,
       maxSlots: maxSlots,
       slotsFilled: 0,
@@ -4024,6 +4078,105 @@ function bindCurrentTabEvents() {
 
     await syncToFirestore('tournaments', newTourn.id, newTourn);
     broadcastSync('TOURNAMENTS_UPDATED', newTourn);
+  });
+
+  // Tournaments: View Registered Players (Roster) & CSV Export
+  document.querySelectorAll('.btn-view-participants').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const t = state.tournaments.find(x => x.id === id);
+      if (!t) return;
+
+      const players = t.participants || [];
+      const hasPlayers = players.length > 0;
+
+      let tableRows = '';
+      if (!hasPlayers) {
+        tableRows = `
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 28px 16px; color: var(--text-muted);">
+              <div style="font-size: 24px; margin-bottom: 6px;">👥</div>
+              <div style="font-weight: 700; color: var(--text-main);">No Players Registered Yet</div>
+              <div style="font-size: 11.5px; margin-top: 4px;">Registered players will appear here automatically in real-time.</div>
+            </td>
+          </tr>
+        `;
+      } else {
+        tableRows = players.map((p, idx) => {
+          const joinedTime = p.joinedAt ? new Date(p.joinedAt).toLocaleString() : 'N/A';
+          return `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding: 10px; font-weight: 700; color: var(--text-muted);">${idx + 1}</td>
+              <td style="padding: 10px; font-weight: 800; color: var(--text-main);">${p.ign || p.playerName || p.name || 'Unknown'}</td>
+              <td style="padding: 10px; font-family: monospace; color: #38bdf8; font-weight: 700;">${p.ffUid || p.uid || 'N/A'}</td>
+              <td style="padding: 10px; font-family: monospace; color: #34d399; font-weight: 700;">${p.phone || p.bkashNumber || p.contactNumber || 'N/A'}</td>
+              <td style="padding: 10px; font-size: 11px; color: var(--text-muted);">${joinedTime}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      const modalHtml = `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);">${t.title}</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Total Registered: <strong style="color: #10b981;">${players.length}</strong> / ${t.slotsTotal || t.maxSlots || 48} Slots
+              </div>
+            </div>
+            ${hasPlayers ? `
+              <button id="btn-export-participants-csv" class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px; border-color: #10b981; color: #10b981; display: inline-flex; align-items: center; gap: 6px;">
+                📥 Export CSV
+              </button>
+            ` : ''}
+          </div>
+
+          <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+              <thead style="background: var(--bg-card-hover); position: sticky; top: 0; z-index: 1;">
+                <tr>
+                  <th style="padding: 10px; color: var(--text-muted); font-size: 11px;">#</th>
+                  <th style="padding: 10px; color: var(--text-muted); font-size: 11px;">IGN (Game Name)</th>
+                  <th style="padding: 10px; color: var(--text-muted); font-size: 11px;">Free Fire UID</th>
+                  <th style="padding: 10px; color: var(--text-muted); font-size: 11px;">bKash / Nagad</th>
+                  <th style="padding: 10px; color: var(--text-muted); font-size: 11px;">Registered At</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      openAdminModal(`👥 Registered Players (${players.length})`, modalHtml, null);
+
+      if (hasPlayers) {
+        document.getElementById('btn-export-participants-csv')?.addEventListener('click', () => {
+          const csvHeader = 'Index,In-Game Name (IGN),Free Fire UID,Payment/Phone Number,Registration Date\n';
+          const csvData = players.map((p, idx) => {
+            const ign = (p.ign || p.playerName || p.name || '').replace(/"/g, '""');
+            const uid = (p.ffUid || p.uid || '').replace(/"/g, '""');
+            const phone = (p.phone || p.bkashNumber || p.contactNumber || '').replace(/"/g, '""');
+            const time = p.joinedAt ? new Date(p.joinedAt).toISOString() : '';
+            return `"${idx + 1}","${ign}","${uid}","${phone}","${time}"`;
+          }).join('\n');
+
+          const blob = new Blob([csvHeader + csvData], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${t.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_players.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast('Player roster exported to CSV successfully!', 'success');
+        });
+      }
+    });
   });
 
   // Tournaments: Release Room ID & Password
@@ -4113,6 +4266,27 @@ function bindCurrentTabEvents() {
               <option value="Completed" ${t.status === 'Completed' ? 'selected' : ''}>Completed</option>
             </select>
           </div>
+          <div class="form-group" style="grid-column: 1 / -1; background: var(--bg-card-hover); padding: 12px; border-radius: var(--radius-md); border: 1px dashed var(--border-light);">
+            <label class="form-label" style="color: #f59e0b; margin-bottom: 8px;">🏆 Custom Rank Prize Breakdown (Optional)</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div>
+                <label style="font-size: 11px; color: #f59e0b; font-weight: 700;">🥇 1st Place</label>
+                <input type="text" id="edit-t-tier-1" class="form-control" value="${(t.prizeTiers && t.prizeTiers[0]?.prize) || ''}" placeholder="e.g. 300 Diamonds" />
+              </div>
+              <div>
+                <label style="font-size: 11px; color: #60a5fa; font-weight: 700;">🥈 2nd Place</label>
+                <input type="text" id="edit-t-tier-2" class="form-control" value="${(t.prizeTiers && t.prizeTiers[1]?.prize) || ''}" placeholder="e.g. 150 Diamonds" />
+              </div>
+              <div>
+                <label style="font-size: 11px; color: #34d399; font-weight: 700;">🥉 3rd Place</label>
+                <input type="text" id="edit-t-tier-3" class="form-control" value="${(t.prizeTiers && t.prizeTiers[2]?.prize) || ''}" placeholder="e.g. 50 Diamonds" />
+              </div>
+              <div>
+                <label style="font-size: 11px; color: #a78bfa; font-weight: 700;">🎖️ 4th Place</label>
+                <input type="text" id="edit-t-tier-4" class="form-control" value="${(t.prizeTiers && t.prizeTiers[3]?.prize) || ''}" placeholder="e.g. 25 Diamonds (Optional)" />
+              </div>
+            </div>
+          </div>
           <div class="form-group" style="grid-column: 1 / -1;">
             <label class="form-label">Banner URL</label>
             <input type="text" id="edit-t-banner" class="form-control" value="${t.banner || t.bannerUrl || 'assets/images/banner_esports.jpg'}" />
@@ -4133,6 +4307,17 @@ function bindCurrentTabEvents() {
         t.isLive = t.status === 'LIVE';
         t.banner = document.getElementById('edit-t-banner').value.trim() || t.banner;
         t.bannerUrl = t.banner;
+
+        const e1 = document.getElementById('edit-t-tier-1')?.value.trim();
+        const e2 = document.getElementById('edit-t-tier-2')?.value.trim();
+        const e3 = document.getElementById('edit-t-tier-3')?.value.trim();
+        const e4 = document.getElementById('edit-t-tier-4')?.value.trim();
+        const updatedTiers = [];
+        if (e1) updatedTiers.push({ rank: '1st Place', place: '1st Place', prize: e1, amount: e1 });
+        if (e2) updatedTiers.push({ rank: '2nd Place', place: '2nd Place', prize: e2, amount: e2 });
+        if (e3) updatedTiers.push({ rank: '3rd Place', place: '3rd Place', prize: e3, amount: e3 });
+        if (e4) updatedTiers.push({ rank: '4th Place', place: '4th Place', prize: e4, amount: e4 });
+        t.prizeTiers = updatedTiers;
 
         setStorage('mobinx_tournaments_data', state.tournaments);
         showToast('Tournament updated!', 'success');
