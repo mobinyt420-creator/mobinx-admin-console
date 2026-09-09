@@ -193,6 +193,7 @@ body {
   letter-spacing: 0.5px;
   background: linear-gradient(90deg, #ffffff, #93c5fd);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -2104,6 +2105,29 @@ const defaultDynamicProducts = [
   { id: 'prod-shop-store', name: 'Obin Shop Store', image: 'assets/images/service_shop.jpg', url: 'https://www.obinshop.com/', enabled: true, sortOrder: 2 }
 ];
 
+const defaultHomeShopProducts = [
+  {
+    id: 'prod_1',
+    title: 'Mobin X Pro Esports Jersey',
+    category: 'Official T-Shirt',
+    price: '৳ 650',
+    originalPrice: '৳ 850',
+    tag: 'BESTSELLER',
+    imageUrl: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&q=80',
+    url: 'https://www.obinshop.com/'
+  },
+  {
+    id: 'prod_2',
+    title: 'Mobin X RGB Gaming Headset',
+    category: 'Pro Audio Gadget',
+    price: '৳ 1,250',
+    originalPrice: '৳ 1,600',
+    tag: 'TOP GADGET',
+    imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&q=80',
+    url: 'https://www.obinshop.com/'
+  }
+];
+
 const defaultUsers = [
   {
     id: 'user_mobinyt420_gmail_com',
@@ -2142,6 +2166,7 @@ const state = {
   appUpdate: getStorage('mobinx_app_update', defaultAppUpdate),
   authSettings: getStorage('mobinx_auth_settings', defaultAuthSettings),
   dynamicProducts: getStorage('mobinx_dynamic_products', defaultDynamicProducts),
+  homeShopProducts: getStorage('mobinx_home_shop_products', defaultHomeShopProducts),
   notifications: getStorage('mobinx_admin_notifications', []),
   users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
   userSearchQuery: '',
@@ -3367,6 +3392,103 @@ function renderDynamicProducts() {
   return `
     <div class="tab-pane active" id="tab-products">
       
+      <!-- 🛍️ Home Featured Shop Products (2 Products on Mobile Home) -->
+      <div class="card" style="margin-bottom: 24px; border: 1.5px solid var(--primary); box-shadow: 0 4px 20px rgba(37, 99, 235, 0.12);">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(249,115,22,0.08) 100%);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <h3 class="card-title" style="color: var(--primary);">🛍️ Home Featured Shop Products (2 Live Products)</h3>
+              <p class="card-subtitle">Manage the 2 e-commerce shop products shown under the Flash Diamond section on the App Home Screen</p>
+            </div>
+            <span class="badge-pill" style="background: #eff6ff; color: #2563eb; font-weight: 800;">LIVE HOME FEED</span>
+          </div>
+        </div>
+
+        <form id="form-home-shop-products" style="padding: 16px; display: flex; flex-direction: column; gap: 20px;">
+          <!-- Product 1 -->
+          <div style="background: var(--bg-card-hover); padding: 14px; border-radius: 12px; border: 1px solid var(--border-color);">
+            <div style="font-weight: 800; font-size: 14px; color: #ea580c; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>📦 Product 1 (Left Card)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px;">
+              <div>
+                <label class="form-label">Title *</label>
+                <input type="text" id="home-prod1-title" class="form-control" value="${state.homeShopProducts[0]?.title || ''}" required />
+              </div>
+              <div>
+                <label class="form-label">Category *</label>
+                <input type="text" id="home-prod1-cat" class="form-control" value="${state.homeShopProducts[0]?.category || ''}" placeholder="e.g. Official T-Shirt" required />
+              </div>
+              <div>
+                <label class="form-label">Price *</label>
+                <input type="text" id="home-prod1-price" class="form-control" value="${state.homeShopProducts[0]?.price || ''}" placeholder="৳ 650" required />
+              </div>
+              <div>
+                <label class="form-label">Original Price</label>
+                <input type="text" id="home-prod1-orig" class="form-control" value="${state.homeShopProducts[0]?.originalPrice || ''}" placeholder="৳ 850" />
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 10px; margin-top: 10px;">
+              <div>
+                <label class="form-label">Badge/Tag</label>
+                <input type="text" id="home-prod1-tag" class="form-control" value="${state.homeShopProducts[0]?.tag || ''}" placeholder="BESTSELLER" />
+              </div>
+              <div>
+                <label class="form-label">Image URL *</label>
+                <input type="url" id="home-prod1-img" class="form-control" value="${state.homeShopProducts[0]?.imageUrl || ''}" required />
+              </div>
+              <div>
+                <label class="form-label">Product Link (opens store) *</label>
+                <input type="url" id="home-prod1-url" class="form-control" value="${state.homeShopProducts[0]?.url || ''}" required />
+              </div>
+            </div>
+          </div>
+
+          <!-- Product 2 -->
+          <div style="background: var(--bg-card-hover); padding: 14px; border-radius: 12px; border: 1px solid var(--border-color);">
+            <div style="font-weight: 800; font-size: 14px; color: #ea580c; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>📦 Product 2 (Right Card)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px;">
+              <div>
+                <label class="form-label">Title *</label>
+                <input type="text" id="home-prod2-title" class="form-control" value="${state.homeShopProducts[1]?.title || ''}" required />
+              </div>
+              <div>
+                <label class="form-label">Category *</label>
+                <input type="text" id="home-prod2-cat" class="form-control" value="${state.homeShopProducts[1]?.category || ''}" placeholder="e.g. Pro Audio Gadget" required />
+              </div>
+              <div>
+                <label class="form-label">Price *</label>
+                <input type="text" id="home-prod2-price" class="form-control" value="${state.homeShopProducts[1]?.price || ''}" placeholder="৳ 1,250" required />
+              </div>
+              <div>
+                <label class="form-label">Original Price</label>
+                <input type="text" id="home-prod2-orig" class="form-control" value="${state.homeShopProducts[1]?.originalPrice || ''}" placeholder="৳ 1,600" />
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 10px; margin-top: 10px;">
+              <div>
+                <label class="form-label">Badge/Tag</label>
+                <input type="text" id="home-prod2-tag" class="form-control" value="${state.homeShopProducts[1]?.tag || ''}" placeholder="TOP GADGET" />
+              </div>
+              <div>
+                <label class="form-label">Image URL *</label>
+                <input type="url" id="home-prod2-img" class="form-control" value="${state.homeShopProducts[1]?.imageUrl || ''}" required />
+              </div>
+              <div>
+                <label class="form-label">Product Link (opens store) *</label>
+                <input type="url" id="home-prod2-url" class="form-control" value="${state.homeShopProducts[1]?.url || ''}" required />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 12px; font-weight: 800;">
+            💾 Save Home Shop Products (Instant Live Sync to Mobile App)
+          </button>
+        </form>
+      </div>
+
       <!-- Add Product Form Card -->
       <div class="card" style="margin-bottom: 20px;">
         <div class="card-header">
@@ -4798,6 +4920,50 @@ function bindCurrentTabEvents() {
     e.preventDefault();
     await saveAuthSettings(true);
     showToast('🔐 All authentication settings saved successfully!', 'success');
+  });
+
+  // Home Featured Shop Products: Save
+  document.getElementById('form-home-shop-products')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const p1 = {
+      id: 'prod_1',
+      title: document.getElementById('home-prod1-title')?.value.trim() || 'Mobin X Pro Esports Jersey',
+      category: document.getElementById('home-prod1-cat')?.value.trim() || 'Official T-Shirt',
+      price: document.getElementById('home-prod1-price')?.value.trim() || '৳ 650',
+      originalPrice: document.getElementById('home-prod1-orig')?.value.trim() || '৳ 850',
+      tag: document.getElementById('home-prod1-tag')?.value.trim() || 'BESTSELLER',
+      imageUrl: document.getElementById('home-prod1-img')?.value.trim() || '',
+      url: document.getElementById('home-prod1-url')?.value.trim() || 'https://www.obinshop.com/'
+    };
+
+    const p2 = {
+      id: 'prod_2',
+      title: document.getElementById('home-prod2-title')?.value.trim() || 'Mobin X RGB Gaming Headset',
+      category: document.getElementById('home-prod2-cat')?.value.trim() || 'Pro Audio Gadget',
+      price: document.getElementById('home-prod2-price')?.value.trim() || '৳ 1,250',
+      originalPrice: document.getElementById('home-prod2-orig')?.value.trim() || '৳ 1,600',
+      tag: document.getElementById('home-prod2-tag')?.value.trim() || 'TOP GADGET',
+      imageUrl: document.getElementById('home-prod2-img')?.value.trim() || '',
+      url: document.getElementById('home-prod2-url')?.value.trim() || 'https://www.obinshop.com/'
+    };
+
+    state.homeShopProducts = [p1, p2];
+    setStorage('mobinx_home_shop_products', state.homeShopProducts);
+
+    showToast('🛍️ Home Shop Products saved! Syncing live to mobile app...', 'info');
+
+    try {
+      await Promise.all([
+        syncToFirestore('shop_products', 'prod_1', p1),
+        syncToFirestore('shop_products', 'prod_2', p2),
+        syncToFirestore('config', 'shop_products', { products: state.homeShopProducts })
+      ]);
+      broadcastSync('SHOP_PRODUCTS_UPDATED', state.homeShopProducts);
+      showToast('✅ 2 Home Shop Products live synced to mobile app!', 'success');
+    } catch (err) {
+      showToast('Saved locally. Cloud sync: ' + err.message, 'warning');
+    }
   });
 
   // Dynamic Products: Add form

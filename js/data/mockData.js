@@ -266,139 +266,22 @@ export const promoBanners = [
 
 /**
  * APK Downloads Catalog (YouTube Video Previews & Dynamic Action Buttons)
+ * Populated dynamically from Firestore / Admin Panel
  */
-export const downloadItems = [
-  {
-    id: "apk-1",
-    title: "Mobin X Proxy Ultra Boost APK (Latest V2.8)",
-    description: "High FPS unlocker, anti-lag optimization and network stabilizer for competitive esports matches.",
-    category: "Mobin APK",
-    version: "v2.8.4",
-    size: "28.5 MB",
-    downloadsCount: "185.4K",
-    rating: 4.9,
-    youtubeId: "dQw4w9WgXcQ",
-    videoThumbnail: "assets/images/banner_booyah.jpg",
-    videoDuration: "08:45",
-    actionButtons: [
-      { id: "act-1", label: "Proxy APK Download", icon: "download", type: "download", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-2", label: "UID Unlock", icon: "key", type: "action", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-3", label: "BTN Download", icon: "file", type: "download", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-4", label: "Join Telegram", icon: "telegram", type: "external", url: appUrls.telegram }
-    ]
-  },
-  {
-    id: "apk-2",
-    title: "Free Fire Max VIP Headshot Aim Configuration V4",
-    description: "Verified recoil control & touch response calibration file with slow-motion tutorial guide.",
-    category: "Tools",
-    version: "v4.1.0",
-    size: "14.2 MB",
-    downloadsCount: "94.2K",
-    rating: 4.8,
-    youtubeId: "LXb3EKWsInQ",
-    videoThumbnail: "assets/images/banner_esports.jpg",
-    videoDuration: "12:10",
-    actionButtons: [
-      { id: "act-1", label: "Config APK Download", icon: "download", type: "download", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-2", label: "UID Bypass Tool", icon: "shield", type: "action", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-3", label: "Get Sound Pack", icon: "volume", type: "download", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-4", label: "Join Telegram", icon: "telegram", type: "external", url: appUrls.telegram }
-    ]
-  },
-  {
-    id: "apk-3",
-    title: "Mobin X Game Booster Pro Max (Universal Optimizer)",
-    description: "Real-time RAM cleaner, GPU performance booster, and 120Hz display refresh lock for all devices.",
-    category: "Premium Apps",
-    version: "v3.0.2",
-    size: "19.8 MB",
-    downloadsCount: "230.1K",
-    rating: 5.0,
-    youtubeId: "5qap5aO4i9A",
-    videoThumbnail: "assets/images/banner_referral.jpg",
-    videoDuration: "06:30",
-    actionButtons: [
-      { id: "act-1", label: "Booster APK Download", icon: "download", type: "download", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-2", label: "License Key Gen", icon: "key", type: "action", url: "https://mrmobin1m.blogspot.com" },
-      { id: "act-3", label: "Join Telegram", icon: "telegram", type: "external", url: appUrls.telegram }
-    ]
-  }
-];
+export const downloadItems = [];
 
 /**
  * Esports Tournaments List
+ * Populated dynamically from Firestore / Admin Panel
  */
-export const tournamentsList = [
-  {
-    id: "tourn-1",
-    status: "LIVE",
-    title: "Mobin X Booyah Cup #44",
-    gameMode: "Squad Battle Royale",
-    entryFee: "FREE",
-    prizePool: "৳ 25,000",
-    date: "TODAY",
-    time: "08:30 PM",
-    slotsTotal: 48,
-    slotsFilled: 44,
-    map: "Bermuda",
-    banner: "assets/images/banner_booyah.jpg",
-    rules: "Mobile only (No emulators). Room ID sent 15 mins before start."
-  },
-  {
-    id: "tourn-2",
-    status: "UPCOMING",
-    title: "All-Stars Clash Squad Championship",
-    gameMode: "4v4 Clash Squad",
-    entryFee: "50 Diamonds",
-    prizePool: "৳ 50,000",
-    date: "TOMORROW",
-    time: "06:00 PM",
-    slotsTotal: 32,
-    slotsFilled: 18,
-    map: "Kalahari",
-    banner: "assets/images/banner_esports.jpg",
-    rules: "Best of 7 rounds. Official referee in custom room."
-  },
-  {
-    id: "tourn-3",
-    status: "UPCOMING",
-    title: "Weekend Solo Headshot Masters",
-    gameMode: "Solo Headshot Only",
-    entryFee: "FREE",
-    prizePool: "৳ 10,000",
-    date: "SATURDAY",
-    time: "04:00 PM",
-    slotsTotal: 50,
-    slotsFilled: 22,
-    map: "Purgatory",
-    banner: "assets/images/banner_referral.jpg",
-    rules: "Desert Eagle & M1887 headshots only. Top 3 win cash prizes."
-  },
-  {
-    id: "tourn-4",
-    status: "COMPLETED",
-    title: "Mobin X Season 16 Grand Final",
-    gameMode: "Squad Championship",
-    entryFee: "FREE",
-    prizePool: "৳ 100,000",
-    date: "PAST EVENT",
-    time: "09:00 PM",
-    slotsTotal: 48,
-    slotsFilled: 48,
-    winner: "Team Apex Predators",
-    map: "Bermuda",
-    banner: "assets/images/banner_esports.jpg",
-    rules: "Tournament concluded. Prize money dispatched to winner bKash/Nagad."
-  }
-];
+export const tournamentsList = [];
 
 export const notificationsList = [
   {
     id: "notif-1",
     type: "tournament",
-    title: "Tournament Starting Soon!",
-    desc: "Mobin X Booyah Cup #44 kicks off in 30 minutes. Be in room lobby on time.",
+    title: "Welcome to Mobin X Tournaments",
+    desc: "Join our official daily esports tournaments and win exciting prizes.",
     timeAgo: "10m ago",
     unread: true,
     icon: "trophy",
