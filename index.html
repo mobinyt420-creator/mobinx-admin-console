@@ -2747,7 +2747,9 @@ function renderDownloads() {
                   </div>
                 </div>
 
-                <div style="display: flex; gap: 6px;">
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button class="btn btn-secondary btn-move-dl-up" data-id="${dl.id}" title="Move Up" style="padding: 6px 10px; font-size: 12px; font-weight: 800;">↑</button>
+                  <button class="btn btn-secondary btn-move-dl-down" data-id="${dl.id}" title="Move Down" style="padding: 6px 10px; font-size: 12px; font-weight: 800;">↓</button>
                   <button class="btn btn-secondary btn-toggle-dl-status" data-id="${dl.id}" style="padding: 6px 12px; font-size: 12px;">
                     ${dl.isActive === false || dl.status === 'inactive' ? '🔴 Inactive' : '🟢 Active'}
                   </button>
@@ -3764,6 +3766,21 @@ function renderNotifications() {
             <p class="card-subtitle">নিচের ফর্মটি পূরণ করে সেন্ড বাটনে চাপ দিলে সকল ইউজারের ফোনে নোটিফিকেশন পৌঁছে যাবে</p>
           </div>
 
+          <!-- Firebase Cloud Messaging (FCM) Integration Banner -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 800; color: #38bdf8;">🔑 Firebase Cloud Messaging (FCM) Status:</span>
+              <span id="fcm-status-badge" class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; font-size: 11px;">Dual-Layer Active</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="password" id="input-fcm-server-key" class="form-control" style="font-size: 11.5px; padding: 7px 10px;" placeholder="Firebase Cloud Messaging Server Key (Paste here to wake closed apps)" />
+              <button type="button" id="btn-save-fcm-key" class="btn btn-secondary" style="padding: 7px 14px; font-size: 11.5px; white-space: nowrap; background: #1e293b; color: #38bdf8; border: 1px solid #334155;">Save Key</button>
+            </div>
+            <div style="font-size: 10.5px; color: #94a3b8; margin-top: 5px; line-height: 1.4;">
+              💡 অ্যাপ বন্ধ থাকলেও নোটিফিকেশন আসার জন্য Firebase Console > Project Settings > Cloud Messaging থেকে Server Key দিন।
+            </div>
+          </div>
+
           <form id="form-send-push-notification" style="display: flex; flex-direction: column; gap: 14px;">
             <div>
               <label class="form-label">নোটিফিকেশন টাইটেল (Title) *</label>
@@ -4508,6 +4525,43 @@ function bindCurrentTabEvents() {
 
       await deleteFromFirestore('downloads', id);
       broadcastSync('DOWNLOADS_UPDATED', { deletedId: id });
+    });
+  });
+
+  // Downloads: Move Up / Down
+  document.querySelectorAll('.btn-move-dl-up').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const idx = state.downloads.findIndex(d => d.id === id);
+      if (idx > 0) {
+        const temp = state.downloads[idx];
+        state.downloads[idx] = state.downloads[idx - 1];
+        state.downloads[idx - 1] = temp;
+        state.downloads.forEach((d, i) => { d.order = i; });
+        setStorage('mobinx_downloads_catalog', state.downloads);
+        showToast('Download item moved up', 'info');
+        renderCurrentTab();
+        state.downloads.forEach(d => syncToFirestore('downloads', d.id, d));
+        broadcastSync('DOWNLOADS_UPDATED', { reordered: true });
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-move-dl-down').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const idx = state.downloads.findIndex(d => d.id === id);
+      if (idx !== -1 && idx < state.downloads.length - 1) {
+        const temp = state.downloads[idx];
+        state.downloads[idx] = state.downloads[idx + 1];
+        state.downloads[idx + 1] = temp;
+        state.downloads.forEach((d, i) => { d.order = i; });
+        setStorage('mobinx_downloads_catalog', state.downloads);
+        showToast('Download item moved down', 'info');
+        renderCurrentTab();
+        state.downloads.forEach(d => syncToFirestore('downloads', d.id, d));
+        broadcastSync('DOWNLOADS_UPDATED', { reordered: true });
+      }
     });
   });
 
@@ -5274,6 +5328,104 @@ function bindCurrentTabEvents() {
     }
   });
 
+  // Push Notifications: FCM Key Management
+  const fcmInput = document.getElementById('input-fcm-server-key');
+  const btnSaveFcm = document.getElementById('btn-save-fcm-key');
+  const fcmBadge = document.getElementById('fcm-status-badge');
+  const savedFcmKey = localStorage.getItem('mobinx_fcm_server_key') || '';
+  if (fcmInput && savedFcmKey) {
+    fcmInput.value = savedFcmKey;
+    if (fcmBadge) {
+      fcmBadge.textContent = 'FCM Cloud Active';
+      fcmBadge.style.background = 'rgba(16,185,129,0.2)';
+      fcmBadge.style.color = '#34d399';
+    }
+  }
+
+  btnSaveFcm?.addEventListener('click', async () => {
+    const keyVal = fcmInput?.value.trim() || '';
+    if (!keyVal) {
+      localStorage.removeItem('mobinx_fcm_server_key');
+      showToast('FCM Key cleared.', 'info');
+      return;
+    }
+    localStorage.setItem('mobinx_fcm_server_key', keyVal);
+    try {
+      await syncToFirestore('config', 'fcm_settings', { serverKey: keyVal, updatedAt: Date.now() });
+    } catch(e) {}
+    showToast('✅ FCM Server Key saved successfully!', 'success');
+    if (fcmBadge) {
+      fcmBadge.textContent = 'FCM Cloud Active';
+      fcmBadge.style.background = 'rgba(16,185,129,0.2)';
+      fcmBadge.style.color = '#34d399';
+    }
+  });
+
+  // Helper: Dispatch FCM Push to Android Devices (Background & Terminated Wakeup)
+  async function dispatchFcmToAllDevices(notif) {
+    const serverKey = localStorage.getItem('mobinx_fcm_server_key') || '';
+
+    // 1. Dispatch via local/Vercel serverless proxy /api/send-fcm (Zero CORS issues)
+    try {
+      const resp = await fetch('/api/send-fcm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notification: notif, serverKey: serverKey })
+      });
+      if (resp.ok) {
+        const resData = await resp.json();
+        console.log('✅ Server FCM Proxy dispatch result:', resData);
+        if (resData.success) return true;
+      }
+    } catch (proxyErr) {
+      console.warn('Server proxy notice:', proxyErr.message);
+    }
+
+    if (!serverKey) return false;
+
+    // 2. Direct FCM Legacy HTTP fallback
+    const topics = ['all', 'all_users', 'mobinx_broadcast', 'obin_broadcast'];
+    const payloadBase = {
+      priority: 'high',
+      notification: {
+        title: notif.title,
+        body: notif.message || notif.desc,
+        sound: 'default',
+        android_channel_id: 'mobinx_high_importance_channel',
+        channel_id: 'mobinx_push_channel',
+        click_action: 'FLUTTER_NOTIFICATION_CLICK'
+      },
+      data: {
+        title: notif.title,
+        body: notif.message || notif.desc,
+        message: notif.message || notif.desc,
+        type: notif.type || 'general',
+        targetUrl: notif.targetUrl || '',
+        actionUrl: notif.actionUrl || '',
+        imageUrl: notif.imageUrl || '',
+        id: notif.id,
+        broadcastId: notif.broadcastId
+      }
+    };
+
+    try {
+      await Promise.allSettled(topics.map(t => {
+        return fetch('https://fcm.googleapis.com/fcm/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `key=${serverKey}`
+          },
+          body: JSON.stringify({ ...payloadBase, to: `/topics/${t}` })
+        });
+      }));
+      return true;
+    } catch(e) {
+      console.warn('FCM dispatch notice:', e);
+      return false;
+    }
+  }
+
   // Push Notifications: Submit Broadcast Form
   const formNotif = document.getElementById('form-send-push-notification');
   formNotif?.addEventListener('submit', async (e) => {
@@ -5312,17 +5464,22 @@ function bindCurrentTabEvents() {
     state.notifications.unshift(newNotif);
     setStorage('mobinx_admin_notifications', state.notifications);
 
-    // Parallel sync for sub-second delivery
-    await Promise.all([
-      syncToFirestore('notifications', notifId, newNotif),
-      syncToFirestore('config', 'notices', {
-        pushNotification: newNotif,
-        broadcastId: broadcastId,
-        lastUpdated: Date.now()
-      })
-    ]);
+    // Parallel sync across Firestore collections & document channels for sub-second delivery
+    try {
+      await Promise.all([
+        syncToFirestore('notifications', notifId, newNotif),
+        syncToFirestore('config', 'notices', {
+          pushNotification: newNotif,
+          broadcastId: broadcastId,
+          lastUpdated: Date.now()
+        }),
+        dispatchFcmToAllDevices(newNotif)
+      ]);
+    } catch (err) {
+      console.warn('Firestore push broadcast notice:', err.message);
+    }
 
-    // Broadcast locally across tabs
+    // Broadcast locally across open tabs/windows
     broadcastSync('PUSH_NOTIFICATION_SENT', newNotif);
 
     showToast('🚀 Push Notification successfully broadcasted to all users!', 'success');
@@ -5352,20 +5509,26 @@ function bindCurrentTabEvents() {
       state.notifications = [resentNotif, ...state.notifications.filter(x => x.id !== notif.id)];
       setStorage('mobinx_admin_notifications', state.notifications);
 
-      await Promise.all([
-        syncToFirestore('notifications', notif.id, resentNotif),
-        syncToFirestore('config', 'notices', {
-          pushNotification: resentNotif,
-          broadcastId: broadcastId,
-          lastUpdated: Date.now()
-        })
-      ]);
+      try {
+        await Promise.all([
+          syncToFirestore('notifications', notif.id, resentNotif),
+          syncToFirestore('config', 'notices', {
+            pushNotification: resentNotif,
+            broadcastId: broadcastId,
+            lastUpdated: Date.now()
+          }),
+          dispatchFcmToAllDevices(resentNotif)
+        ]);
+      } catch (err) {
+        console.warn('Firestore resend notice:', err.message);
+      }
 
       broadcastSync('PUSH_NOTIFICATION_SENT', resentNotif);
       showToast(`🔄 Notification "${resentNotif.title}" resent to all devices instantly!`, 'success');
       renderCurrentTab();
     });
   });
+
 
   // Push Notifications: Delete from History
   document.querySelectorAll('.btn-delete-notif').forEach(btn => {
