@@ -1965,6 +1965,31 @@ async function initFirebase() {
       }
     }, (err) => console.warn('Notifications onSnapshot notice:', err.message));
 
+    // 9. Live Authentication Settings Listener
+    onSnapshot(doc(db, 'config', 'auth_settings'), (docSnap) => {
+      if (docSnap.exists()) {
+        state.authSettings = { ...defaultAuthSettings, ...docSnap.data() };
+        setStorage('mobinx_auth_settings', state.authSettings);
+        if (state.activeTab === 'auth') {
+          const s = state.authSettings;
+          const elSystem = document.getElementById('auth-adm-system');
+          if (elSystem) elSystem.checked = s.authSystemEnabled !== false;
+          const elGoogle = document.getElementById('auth-adm-google');
+          if (elGoogle) elGoogle.checked = s.googleLoginEnabled !== false;
+          const elGooglePhone = document.getElementById('auth-adm-google-phone-ver');
+          if (elGooglePhone) elGooglePhone.checked = s.googlePhoneVerificationEnabled === true;
+          const elManualLogin = document.getElementById('auth-adm-manual-login');
+          if (elManualLogin) elManualLogin.checked = s.manualLoginEnabled !== false;
+          const elManualReg = document.getElementById('auth-adm-manual-reg');
+          if (elManualReg) elManualReg.checked = s.manualRegistrationEnabled !== false;
+          const elEmailVer = document.getElementById('auth-adm-email-ver');
+          if (elEmailVer) elEmailVer.checked = s.manualEmailVerificationEnabled === true;
+          const elPhoneVer = document.getElementById('auth-adm-phone-ver');
+          if (elPhoneVer) elPhoneVer.checked = s.manualPhoneVerificationEnabled === true;
+        }
+      }
+    }, (err) => console.warn('AuthSettings onSnapshot notice:', err.message));
+
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
     console.warn('Firebase connection note (operating with local sync bridge):', err.message);
@@ -5119,47 +5144,56 @@ function bindCurrentTabEvents() {
     });
   });
 
-  // Auth Settings: Live auto-save on toggle change + form submit
-  const saveAuthSettings = async (showToastNotice = true) => {
-    const authSystemEnabled = document.getElementById('auth-adm-system')?.checked ?? true;
-    const googleLoginEnabled = document.getElementById('auth-adm-google')?.checked ?? true;
-    const googlePhoneVerificationEnabled = document.getElementById('auth-adm-google-phone-ver')?.checked ?? false;
-    const manualLoginEnabled = document.getElementById('auth-adm-manual-login')?.checked ?? true;
-    const manualRegistrationEnabled = document.getElementById('auth-adm-manual-reg')?.checked ?? true;
-    const manualEmailVerificationEnabled = document.getElementById('auth-adm-email-ver')?.checked ?? false;
-    const manualPhoneVerificationEnabled = document.getElementById('auth-adm-phone-ver')?.checked ?? false;
-
+  // Auth Settings: Isolated live updates per switch to prevent toggles affecting each other
+  const updateSingleAuthSetting = async (key, val, label) => {
     state.authSettings = {
-      authSystemEnabled,
-      googleLoginEnabled,
-      googlePhoneVerificationEnabled,
-      manualLoginEnabled,
-      manualRegistrationEnabled,
-      manualEmailVerificationEnabled,
-      manualPhoneVerificationEnabled,
+      ...defaultAuthSettings,
+      ...(state.authSettings || {}),
+      [key]: val,
       topUpEnabled: true
     };
 
     setStorage('mobinx_auth_settings', state.authSettings);
-    if (showToastNotice) {
-      showToast('🔐 Auth switch saved & broadcasted live!', 'success');
-    }
+    showToast(`🔐 ${label}: ${val ? 'ON (Active)' : 'OFF (Disabled)'}`, 'success');
 
     await syncToFirestore('config', 'auth_settings', state.authSettings);
     broadcastSync('AUTH_SETTINGS_UPDATED', state.authSettings);
   };
 
-  ['auth-adm-system', 'auth-adm-google', 'auth-adm-google-phone-ver', 'auth-adm-manual-login', 'auth-adm-manual-reg', 'auth-adm-email-ver', 'auth-adm-phone-ver'].forEach(switchId => {
-    document.getElementById(switchId)?.addEventListener('change', () => {
-      saveAuthSettings(true);
-    });
+  const authSwitches = [
+    { id: 'auth-adm-system', key: 'authSystemEnabled', label: 'Master Auth System' },
+    { id: 'auth-adm-google', key: 'googleLoginEnabled', label: 'Google Login' },
+    { id: 'auth-adm-google-phone-ver', key: 'googlePhoneVerificationEnabled', label: 'Google Phone OTP Verification' },
+    { id: 'auth-adm-manual-login', key: 'manualLoginEnabled', label: 'Manual Login' },
+    { id: 'auth-adm-manual-reg', key: 'manualRegistrationEnabled', label: 'Manual Registration' },
+    { id: 'auth-adm-email-ver', key: 'manualEmailVerificationEnabled', label: 'Manual Email Verification' },
+    { id: 'auth-adm-phone-ver', key: 'manualPhoneVerificationEnabled', label: 'Manual Phone OTP Verification' },
+  ];
+
+  authSwitches.forEach(({ id, key, label }) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.onchange = () => {
+        updateSingleAuthSetting(key, el.checked, label);
+      };
+    }
   });
 
-  document.getElementById('form-auth-settings')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await saveAuthSettings(true);
-    showToast('🔐 All authentication settings saved successfully!', 'success');
-  });
+  const formAuthSettings = document.getElementById('form-auth-settings');
+  if (formAuthSettings) {
+    formAuthSettings.onsubmit = async (e) => {
+      e.preventDefault();
+      authSwitches.forEach(({ id, key }) => {
+        const el = document.getElementById(id);
+        if (el) state.authSettings[key] = el.checked;
+      });
+      state.authSettings.topUpEnabled = true;
+      setStorage('mobinx_auth_settings', state.authSettings);
+      showToast('🔐 All authentication settings saved successfully!', 'success');
+      await syncToFirestore('config', 'auth_settings', state.authSettings);
+      broadcastSync('AUTH_SETTINGS_UPDATED', state.authSettings);
+    };
+  }
 
   // Home Featured Shop Products: Save
   document.getElementById('form-home-shop-products')?.addEventListener('submit', async (e) => {

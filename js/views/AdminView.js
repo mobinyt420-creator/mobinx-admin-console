@@ -1991,43 +1991,41 @@ export function bindAdminEvents() {
   });
 
   // --- AUTHENTICATION CONTROL TAB EVENTS ---
-  const saveInAppAuthSettings = async (showNotice = true) => {
-    const authSystemEnabled = document.getElementById('auth-sw-system')?.checked ?? true;
-    const googleLoginEnabled = document.getElementById('auth-sw-google')?.checked ?? true;
-    const googlePhoneVerificationEnabled = document.getElementById('auth-sw-google-phone-ver')?.checked ?? false;
-    const manualLoginEnabled = document.getElementById('auth-sw-manual-login')?.checked ?? true;
-    const manualRegistrationEnabled = document.getElementById('auth-sw-manual-reg')?.checked ?? true;
-    const manualEmailVerificationEnabled = document.getElementById('auth-sw-email-ver')?.checked ?? false;
-    const manualPhoneVerificationEnabled = document.getElementById('auth-sw-phone-ver')?.checked ?? false;
+  const authSwitches = [
+    { id: 'auth-sw-system', key: 'authSystemEnabled', label: 'Master Auth System' },
+    { id: 'auth-sw-google', key: 'googleLoginEnabled', label: 'Google Login' },
+    { id: 'auth-sw-google-phone-ver', key: 'googlePhoneVerificationEnabled', label: 'Google Phone OTP Verification' },
+    { id: 'auth-sw-manual-login', key: 'manualLoginEnabled', label: 'Manual Login' },
+    { id: 'auth-sw-manual-reg', key: 'manualRegistrationEnabled', label: 'Manual Registration' },
+    { id: 'auth-sw-email-ver', key: 'manualEmailVerificationEnabled', label: 'Manual Email Verification' },
+    { id: 'auth-sw-phone-ver', key: 'manualPhoneVerificationEnabled', label: 'Manual Phone OTP Verification' },
+  ];
 
-    const newSettings = {
-      authSystemEnabled,
-      googleLoginEnabled,
-      googlePhoneVerificationEnabled,
-      manualLoginEnabled,
-      manualRegistrationEnabled,
-      manualEmailVerificationEnabled,
-      manualPhoneVerificationEnabled,
-      topUpEnabled: true
-    };
-
-    await authService.saveAuthSettings(newSettings);
-    if (showNotice) {
-      Toast.show('🔐 Switch updated & broadcasted live!', 'success');
+  authSwitches.forEach(({ id, key, label }) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.onchange = async () => {
+        const current = authService.getAuthSettings();
+        const updated = { ...current, [key]: el.checked, topUpEnabled: true };
+        await authService.saveAuthSettings(updated);
+        Toast.show(`🔐 ${label}: ${el.checked ? 'ON (Active)' : 'OFF (Disabled)'}`, 'success');
+      };
     }
-  };
-
-  ['auth-sw-system', 'auth-sw-google', 'auth-sw-google-phone-ver', 'auth-sw-manual-login', 'auth-sw-manual-reg', 'auth-sw-email-ver', 'auth-sw-phone-ver'].forEach(id => {
-    document.getElementById(id)?.addEventListener('change', () => {
-      saveInAppAuthSettings(true);
-    });
   });
 
-  document.getElementById('btn-save-auth-settings')?.addEventListener('click', async () => {
-    await saveInAppAuthSettings(false);
-    Toast.show('🔐 Authentication switches saved and broadcasted live!', 'success');
-    reRender();
-  });
+  const btnSaveAuth = document.getElementById('btn-save-auth-settings');
+  if (btnSaveAuth) {
+    btnSaveAuth.onclick = async () => {
+      const current = authService.getAuthSettings();
+      const updated = { ...current, topUpEnabled: true };
+      authSwitches.forEach(({ id, key }) => {
+        const el = document.getElementById(id);
+        if (el) updated[key] = el.checked;
+      });
+      await authService.saveAuthSettings(updated);
+      Toast.show('🔐 All authentication settings saved and broadcasted live!', 'success');
+    };
+  }
 
   // --- DYNAMIC PRODUCTS TAB EVENTS ---
   document.getElementById('prod-file-input')?.addEventListener('change', async (e) => {
