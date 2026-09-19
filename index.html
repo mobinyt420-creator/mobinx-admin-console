@@ -4453,20 +4453,31 @@ function bindCurrentTabEvents() {
       }
     });
 
+    const now = Date.now();
     const newDl = {
-      id: 'dl-' + Date.now(),
+      id: 'dl-' + now,
+      createdAt: now,
+      timestamp: now,
+      order: 0,
       title,
       category,
       youtubeId: ytId || 'dQw4w9WgXcQ',
-      videoThumbnail: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`,
+      videoThumbnail: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
       videoDuration: '05:00',
       isPinned,
+      isActive: true,
+      status: 'active',
       actionButtons
     };
 
+    // Prepend to top and re-index orders so newly added video is 100% on top
     state.downloads.unshift(newDl);
+    state.downloads.forEach((item, index) => {
+      item.order = index;
+    });
+
     setStorage('mobinx_downloads_catalog', state.downloads);
-    showToast('APK Download published to catalog!', 'success');
+    showToast('✅ New Video & APK published to top of catalog!', 'success');
     renderCurrentTab();
 
     await syncToFirestore('downloads', newDl.id, newDl);

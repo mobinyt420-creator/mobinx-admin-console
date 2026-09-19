@@ -1016,6 +1016,92 @@ function renderFlashDeals() {
         </div>
       </div>
 
+      <!-- FEATURED HOME SHOP DEALS (2 CARDS BELOW FLASH SALE) -->
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🛍️ Home Featured Shop Deals (2 Cards Below Flash Sale)</div>
+            <div class="card-subtitle">Control the 2 product deals, 1:1 square images, prices, and Buy Now links displayed on the mobile app</div>
+          </div>
+        </div>
+
+        <form id="form-save-shop-deals">
+          <!-- Product 1 -->
+          <div style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
+            <div style="font-weight: 800; font-size: 13px; color: var(--text-main); margin-bottom: 10px;">📦 Product 1 (Left Card)</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Product Title *</label>
+                <input type="text" id="admin-shop-p1-title" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.title) || 'Mobin X Pro Esports Jersey'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Category *</label>
+                <input type="text" id="admin-shop-p1-cat" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.category) || 'Official T-Shirt'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Deal Price (৳) *</label>
+                <input type="text" id="admin-shop-p1-price" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.price) || '৳ 650'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Original Price</label>
+                <input type="text" id="admin-shop-p1-orig" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.originalPrice) || '৳ 850'}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Badge Tag</label>
+                <input type="text" id="admin-shop-p1-tag" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.tag) || 'BESTSELLER'}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Store / Buy URL *</label>
+                <input type="text" id="admin-shop-p1-url" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.url) || 'https://www.obinshop.com/'}" required />
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 8px;">
+              <label class="form-label">Square 1:1 Image URL *</label>
+              <input type="text" id="admin-shop-p1-img" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[0]?.imageUrl) || 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&q=80'}" required />
+            </div>
+          </div>
+
+          <!-- Product 2 -->
+          <div style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px;">
+            <div style="font-weight: 800; font-size: 13px; color: var(--text-main); margin-bottom: 10px;">🎧 Product 2 (Right Card)</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Product Title *</label>
+                <input type="text" id="admin-shop-p2-title" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.title) || 'Mobin X RGB Gaming Headset'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Category *</label>
+                <input type="text" id="admin-shop-p2-cat" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.category) || 'Pro Audio Gadget'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Deal Price (৳) *</label>
+                <input type="text" id="admin-shop-p2-price" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.price) || '৳ 1,250'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Original Price</label>
+                <input type="text" id="admin-shop-p2-orig" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.originalPrice) || '৳ 1,600'}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Badge Tag</label>
+                <input type="text" id="admin-shop-p2-tag" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.tag) || 'TOP GADGET'}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Store / Buy URL *</label>
+                <input type="text" id="admin-shop-p2-url" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.url) || 'https://www.obinshop.com/'}" required />
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 8px;">
+              <label class="form-label">Square 1:1 Image URL *</label>
+              <input type="text" id="admin-shop-p2-img" class="form-control" value="${(getStorage('mobinx_home_shop_products', [])[1]?.imageUrl) || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80'}" required />
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 800;">
+            💾 Save & Deploy Featured Shop Deals (Cloud Firestore)
+          </button>
+        </form>
+      </div>
+
     </div>
   `;
 }
@@ -1935,20 +2021,31 @@ function bindCurrentTabEvents() {
       }
     });
 
+    const now = Date.now();
     const newDl = {
-      id: 'dl-' + Date.now(),
+      id: 'dl-' + now,
+      createdAt: now,
+      timestamp: now,
+      order: 0,
       title,
       category,
       youtubeId: ytId || 'dQw4w9WgXcQ',
-      videoThumbnail: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`,
+      videoThumbnail: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
       videoDuration: '05:00',
       isPinned,
+      isActive: true,
+      status: 'active',
       actionButtons
     };
 
+    // Prepend to top and re-index orders so newly added video is 100% on top
     state.downloads.unshift(newDl);
+    state.downloads.forEach((item, index) => {
+      item.order = index;
+    });
+
     setStorage('mobinx_downloads_catalog', state.downloads);
-    showToast('APK Download published to catalog!', 'success');
+    showToast('✅ New Video & APK published to top of catalog!', 'success');
     renderCurrentTab();
 
     await syncToFirestore('downloads', newDl.id, newDl);
@@ -2156,6 +2253,36 @@ function bindCurrentTabEvents() {
         broadcastSync('FLASH_DEALS_UPDATED', d);
       }
     });
+  });
+
+  // Featured Shop Deals: Save Form
+  document.getElementById('form-save-shop-deals')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p1 = {
+      id: 'prod_1',
+      title: document.getElementById('admin-shop-p1-title').value.trim(),
+      category: document.getElementById('admin-shop-p1-cat').value.trim(),
+      price: document.getElementById('admin-shop-p1-price').value.trim(),
+      originalPrice: document.getElementById('admin-shop-p1-orig').value.trim(),
+      tag: document.getElementById('admin-shop-p1-tag').value.trim(),
+      imageUrl: document.getElementById('admin-shop-p1-img').value.trim(),
+      url: document.getElementById('admin-shop-p1-url').value.trim()
+    };
+    const p2 = {
+      id: 'prod_2',
+      title: document.getElementById('admin-shop-p2-title').value.trim(),
+      category: document.getElementById('admin-shop-p2-cat').value.trim(),
+      price: document.getElementById('admin-shop-p2-price').value.trim(),
+      originalPrice: document.getElementById('admin-shop-p2-orig').value.trim(),
+      tag: document.getElementById('admin-shop-p2-tag').value.trim(),
+      imageUrl: document.getElementById('admin-shop-p2-img').value.trim(),
+      url: document.getElementById('admin-shop-p2-url').value.trim()
+    };
+    const prods = [p1, p2];
+    setStorage('mobinx_home_shop_products', prods);
+    showToast('🛍️ Featured Shop Deals saved & synced to Cloud Firestore!', 'success');
+    await syncToFirestore('config', 'shop_products', { products: prods });
+    broadcastSync('SHOP_PRODUCTS_UPDATED', prods);
   });
 
   // Banners: File Upload

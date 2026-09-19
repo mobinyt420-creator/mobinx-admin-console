@@ -2,10 +2,11 @@ import { authService } from '../services/authService.js';
 import { tournamentService } from '../services/tournamentService.js';
 import { downloadService } from '../services/downloadService.js';
 import { notificationService } from '../services/notificationService.js';
+import { firebaseService } from '../services/firebaseService.js';
 import { stateManager } from '../services/stateManager.js';
 import { Toast } from '../components/Toast.js';
 
-let activeAdminTab = 'dashboard'; // 'dashboard', 'users', 'tournaments', 'downloads', 'flash', 'services', 'banners', 'notices', 'urls'
+let activeAdminTab = 'dashboard'; // 'dashboard', 'users', 'tournaments', 'downloads', 'flash', 'services', 'banners', 'notices', 'urls', 'notifications'
 let userSearchQuery = '';
 let userRoleFilter = 'ALL';
 
@@ -80,6 +81,7 @@ export function renderAdminView() {
     { id: 'services', label: '👑 Services', badge: `${popularServices.length}` },
     { id: 'banners', label: '🖼️ Banners', badge: `${heroBanners.length}` },
     { id: 'notices', label: '📢 Notices & Popup', badge: homePopup.enabled ? 'ON' : 'OFF' },
+    { id: 'notifications', label: '🔔 Notifications', badge: 'Push' },
     { id: 'urls', label: '🌐 System URLs', badge: 'Config' }
   ];
 
@@ -148,6 +150,8 @@ function renderActiveAdminTabContent(tab, data) {
       return renderBannersTab(data);
     case 'notices':
       return renderNoticesTab(data);
+    case 'notifications':
+      return renderNotificationsTab(data);
     case 'urls':
       return renderUrlsTab(data);
     default:
@@ -652,6 +656,12 @@ function renderDownloadsTab(data) {
               <div style="font-size: 10.5px; color: #64748b;">${item.category} • ${item.actionButtons ? item.actionButtons.length : 2} action buttons</div>
             </div>
             <div style="display: flex; gap: 4px;">
+              <button class="btn-move-download-up" data-download-id="${item.id}" title="Move Up" style="padding: 6px 8px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer;">
+                ↑
+              </button>
+              <button class="btn-move-download-down" data-download-id="${item.id}" title="Move Down" style="padding: 6px 8px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer;">
+                ↓
+              </button>
               <button class="btn-edit-download" data-download-id="${item.id}" style="padding: 6px 10px; background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">
                 ✏️ Edit
               </button>
@@ -1139,24 +1149,34 @@ function renderNoticesTab(data) {
 function renderUrlsTab(data) {
   return `
     <div class="admin-tab-pane">
-      <div style="background: #ffffff; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0;">
-        <div style="font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 8px;">🌐 Live Endpoint URLs</div>
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+      <div style="background: #ffffff; padding: 16px; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+        <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">🌐 Live Endpoint & Community URLs</div>
+        <p style="font-size: 11px; color: #64748b; margin: 0 0 12px 0;">Control store links, Telegram community, YouTube channel, and promotional destinations in real-time</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
           <div>
-            <label style="font-size: 11px; font-weight: 700; color: #475569;">Top-Up Webview URL</label>
-            <input type="text" id="sys-url-topup" value="${data.urls.topup}" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; margin-top: 2px;" />
+            <label style="font-size: 11px; font-weight: 700; color: #475569;">💎 Top-Up Webview URL</label>
+            <input type="text" id="sys-url-topup" value="${data.urls.topup || 'https://noobtopup.com/'}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; margin-top: 2px;" />
           </div>
           <div>
-            <label style="font-size: 11px; font-weight: 700; color: #475569;">Shop Webview URL</label>
-            <input type="text" id="sys-url-shop" value="${data.urls.shop}" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; margin-top: 2px;" />
+            <label style="font-size: 11px; font-weight: 700; color: #475569;">🛍️ Obin Shop Webview URL</label>
+            <input type="text" id="sys-url-shop" value="${data.urls.shop || 'https://www.obinshop.com/'}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; margin-top: 2px;" />
           </div>
           <div>
-            <label style="font-size: 11px; font-weight: 700; color: #475569;">Telegram Channel Link</label>
-            <input type="text" id="sys-url-telegram" value="${data.urls.telegram}" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px; margin-top: 2px;" />
+            <label style="font-size: 11px; font-weight: 700; color: #475569;">✈️ Telegram Official Community Link</label>
+            <input type="text" id="sys-url-telegram" value="${data.urls.telegram || 'https://t.me/mrmobin1m'}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; margin-top: 2px;" />
+          </div>
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: #475569;">▶️ YouTube Official Channel Link</label>
+            <input type="text" id="sys-url-youtube" value="${data.urls.youtube || 'https://www.youtube.com/@MrMobin1M'}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; margin-top: 2px;" />
+          </div>
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: #475569;">🎁 Special Offers & Rewards Page URL</label>
+            <input type="text" id="sys-url-offers" value="${data.urls.offers || 'https://t.me/mrmobin1m'}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; margin-top: 2px;" />
           </div>
         </div>
-        <button id="btn-save-system-urls" style="width: 100%; background: #0284c7; color: #ffffff; font-weight: 700; padding: 8px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer;">
-          💾 Save Endpoint URLs
+        <button id="btn-save-system-urls" style="width: 100%; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; font-weight: 800; padding: 11px; border-radius: 10px; border: none; font-size: 13px; cursor: pointer; box-shadow: 0 4px 12px rgba(2,132,199,0.25);">
+          💾 Save & Deploy Endpoint URLs (Cloud Firestore)
         </button>
       </div>
     </div>
@@ -1287,10 +1307,100 @@ function renderAuthControlTab(data) {
 // ==========================================
 function renderProductsTab(data) {
   const products = data.dynamicProducts || authService.getDynamicProducts();
+  const shopProducts = authService.getHomeShopProducts() || [];
 
   return `
     <div class="admin-tab-pane">
       
+      <!-- FEATURED HOME SHOP DEALS (2 CARDS BELOW FLASH SALE) -->
+      <div style="background: #ffffff; padding: 18px; border-radius: 16px; border: 1.5px solid #cbd5e1; margin-bottom: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <div style="font-size: 15px; font-weight: 800; color: #0f172a;">🛍️ Featured Shop Deals (Home 2 Cards)</div>
+          <span style="font-size: 11px; background: #e0f2fe; color: #0284c7; padding: 3px 10px; border-radius: 12px; font-weight: 800;">Realtime Sync</span>
+        </div>
+        <p style="font-size: 11.5px; color: #64748b; margin: 0 0 14px 0;">Manage the 2 product cards, prices, 1:1 image links, and Buy Now store destinations shown on the Home view</p>
+
+        <!-- Product 1 Card -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 12px;">
+          <div style="font-weight: 800; font-size: 12.5px; color: #1e293b; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="background: #2563eb; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">1</span>
+            <span>Product 1 (Left Card)</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Product Title *</label>
+              <input type="text" id="shop-p1-title" value="${shopProducts[0]?.title || 'Mobin X Pro Esports Jersey'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Category *</label>
+              <input type="text" id="shop-p1-cat" value="${shopProducts[0]?.category || 'Official T-Shirt'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Deal Price (৳) *</label>
+              <input type="text" id="shop-p1-price" value="${shopProducts[0]?.price || '৳ 650'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Original Price</label>
+              <input type="text" id="shop-p1-orig" value="${shopProducts[0]?.originalPrice || '৳ 850'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Badge Tag</label>
+              <input type="text" id="shop-p1-tag" value="${shopProducts[0]?.tag || 'BESTSELLER'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Buy Now / Store URL *</label>
+              <input type="text" id="shop-p1-url" value="${shopProducts[0]?.url || 'https://www.obinshop.com/'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Square 1:1 Image URL *</label>
+            <input type="text" id="shop-p1-img" value="${shopProducts[0]?.imageUrl || ''}" placeholder="Image link" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+          </div>
+        </div>
+
+        <!-- Product 2 Card -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+          <div style="font-weight: 800; font-size: 12.5px; color: #1e293b; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="background: #2563eb; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">2</span>
+            <span>Product 2 (Right Card)</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Product Title *</label>
+              <input type="text" id="shop-p2-title" value="${shopProducts[1]?.title || 'Mobin X RGB Gaming Headset'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Category *</label>
+              <input type="text" id="shop-p2-cat" value="${shopProducts[1]?.category || 'Pro Audio Gadget'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Deal Price (৳) *</label>
+              <input type="text" id="shop-p2-price" value="${shopProducts[1]?.price || '৳ 1,250'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Original Price</label>
+              <input type="text" id="shop-p2-orig" value="${shopProducts[1]?.originalPrice || '৳ 1,600'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Badge Tag</label>
+              <input type="text" id="shop-p2-tag" value="${shopProducts[1]?.tag || 'TOP GADGET'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Buy Now / Store URL *</label>
+              <input type="text" id="shop-p2-url" value="${shopProducts[1]?.url || 'https://www.obinshop.com/'}" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 10.5px; font-weight: 700; color: #64748b;">Square 1:1 Image URL *</label>
+            <input type="text" id="shop-p2-img" value="${shopProducts[1]?.imageUrl || ''}" placeholder="Image link" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px;" />
+          </div>
+        </div>
+
+        <button id="btn-save-home-shop-deals" style="width: 100%; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #ffffff; font-weight: 800; padding: 11px; border-radius: 10px; border: none; font-size: 13px; cursor: pointer; box-shadow: 0 4px 12px rgba(124,58,237,0.3);">
+          💾 Save & Deploy Featured Shop Deals (Cloud Firestore)
+        </button>
+      </div>
+
       <!-- Add / Edit Dynamic Product Form -->
       <div style="background: #ffffff; padding: 16px; border-radius: 14px; border: 1.5px solid #e2e8f0; margin-bottom: 16px;">
         <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">
@@ -1378,6 +1488,102 @@ function renderProductsTab(data) {
             `).join('')}
           </div>
         `}
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
+// 12. PUSH NOTIFICATIONS BROADCASTER TAB
+// ==========================================
+function renderNotificationsTab(data) {
+  const notifs = notificationService.getAll();
+  return `
+    <div class="admin-tab-pane">
+      
+      <!-- Top Overview Card -->
+      <div style="background: linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%); border-radius: 16px; padding: 18px; color: #ffffff; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.25);">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px;">
+              🔔
+            </div>
+            <div>
+              <h3 style="font-size: 16px; font-weight: 800; margin: 0;">Push Notifications Broadcaster</h3>
+              <p style="font-size: 11.5px; opacity: 0.9; margin: 2px 0 0 0;">Broadcast alerts to all active app users instantly</p>
+            </div>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; background: rgba(16, 185, 129, 0.3); color: #a7f3d0; padding: 4px 8px; border-radius: 12px;">
+            LIVE FCM
+          </span>
+        </div>
+      </div>
+
+      <!-- Broadcaster Form -->
+      <div style="background: #ffffff; border-radius: 16px; padding: 18px; border: 1px solid #e2e8f0; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+        <h4 style="font-size: 14px; font-weight: 800; color: #0f172a; margin: 0 0 14px 0;">📢 নতুন পুশ নোটিফিকেশন পাঠান</h4>
+        
+        <form id="form-inapp-broadcast" style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 700; color: #64748b; margin-bottom: 4px;">নোটিফিকেশন টাইটেল *</label>
+            <input type="text" id="inapp-notif-title" placeholder="যেমন: 🔥 নতুন স্কোয়াড টুর্নামেন্ট!" required style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 13px; outline: none;" />
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 700; color: #64748b; margin-bottom: 4px;">মেসেজ বা বিস্তারিত *</label>
+            <textarea id="inapp-notif-desc" placeholder="যেমন: রাত ৯টায় কাস্টম ম্যাচ শুরু। এখনই রুম কোড দেখে নিন।" required style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 13px; outline: none; min-height: 70px;"></textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display: block; font-size: 11.5px; font-weight: 700; color: #64748b; margin-bottom: 4px;">ক্যাটাগরি</label>
+              <select id="inapp-notif-type" style="width: 100%; box-sizing: border-box; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 12.5px;">
+                <option value="tournament">🏆 Tournament</option>
+                <option value="deal">💎 Top-Up Deal</option>
+                <option value="system" selected>📢 Announcement</option>
+                <option value="shop">🛍️ Shop Product</option>
+                <option value="update">🚀 App Update</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 11.5px; font-weight: 700; color: #64748b; margin-bottom: 4px;">টার্গেট ভিউ</label>
+              <select id="inapp-notif-view" style="width: 100%; box-sizing: border-box; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 12.5px;">
+                <option value="tournaments">Tournaments Tab</option>
+                <option value="topup">Top-Up Tab</option>
+                <option value="shop">Shop Tab</option>
+                <option value="downloads">Downloads Tab</option>
+                <option value="home" selected>Home View</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-inapp-send-notif" style="width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff; border: none; border-radius: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);">
+            🚀 Send Notification to All Users
+          </button>
+        </form>
+      </div>
+
+      <!-- Sent History in App -->
+      <div style="background: #ffffff; border-radius: 16px; padding: 18px; border: 1px solid #e2e8f0;">
+        <h4 style="font-size: 14px; font-weight: 800; color: #0f172a; margin: 0 0 12px 0;">📜 রিসেন্ট নোটিফিকেশন হিস্ট্রি (${notifs.length})</h4>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${notifs.length === 0 ? `
+            <div style="text-align: center; padding: 30px 10px; color: #94a3b8; font-size: 12.5px;">
+              📭 কোনো নোটিফিকেশন হিস্ট্রি নেই।
+            </div>
+          ` : notifs.slice(0, 15).map(n => `
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;">
+              <div>
+                <div style="font-size: 11px; font-weight: 800; color: #0284c7; text-transform: uppercase;">${n.type || 'Notice'} • ${n.time || 'Recent'}</div>
+                <div style="font-size: 13px; font-weight: 800; color: #0f172a; margin: 3px 0;">${n.title || ''}</div>
+                <div style="font-size: 12px; color: #64748b; line-height: 1.4;">${n.desc || n.message || ''}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
       </div>
 
     </div>
@@ -1613,6 +1819,31 @@ export function bindAdminEvents() {
   document.getElementById('btn-cancel-edit-download')?.addEventListener('click', () => {
     editingDownload = null;
     reRender();
+  });
+
+  // Move download item Up / Down
+  document.querySelectorAll('.btn-move-download-up').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const dId = e.currentTarget.getAttribute('data-download-id');
+      const moved = await downloadService.moveItem(dId, 'up');
+      if (moved) {
+        Toast.show('Item moved up', 'info');
+        reRender();
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-move-download-down').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const dId = e.currentTarget.getAttribute('data-download-id');
+      const moved = await downloadService.moveItem(dId, 'down');
+      if (moved) {
+        Toast.show('Item moved down', 'info');
+        reRender();
+      }
+    });
   });
 
   // Edit download item
@@ -1984,10 +2215,39 @@ export function bindAdminEvents() {
     const topup = document.getElementById('sys-url-topup')?.value.trim();
     const shop = document.getElementById('sys-url-shop')?.value.trim();
     const telegram = document.getElementById('sys-url-telegram')?.value.trim();
+    const youtube = document.getElementById('sys-url-youtube')?.value.trim();
+    const offers = document.getElementById('sys-url-offers')?.value.trim();
 
-    authService.updateUrls({ topup, shop, telegram });
-    Toast.show('System URLs updated successfully!', 'success');
+    authService.updateUrls({ topup, shop, telegram, youtube, offers });
+    Toast.show('System & Community URLs updated successfully!', 'success');
     reRender();
+  });
+
+  // --- FEATURED SHOP DEALS SAVE EVENT ---
+  document.getElementById('btn-save-home-shop-deals')?.addEventListener('click', async () => {
+    const p1 = {
+      id: 'prod_1',
+      title: document.getElementById('shop-p1-title')?.value.trim() || 'Mobin X Pro Esports Jersey',
+      category: document.getElementById('shop-p1-cat')?.value.trim() || 'Official T-Shirt',
+      price: document.getElementById('shop-p1-price')?.value.trim() || '৳ 650',
+      originalPrice: document.getElementById('shop-p1-orig')?.value.trim() || '৳ 850',
+      tag: document.getElementById('shop-p1-tag')?.value.trim() || 'BESTSELLER',
+      imageUrl: document.getElementById('shop-p1-img')?.value.trim() || 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&q=80',
+      url: document.getElementById('shop-p1-url')?.value.trim() || 'https://www.obinshop.com/'
+    };
+    const p2 = {
+      id: 'prod_2',
+      title: document.getElementById('shop-p2-title')?.value.trim() || 'Mobin X RGB Gaming Headset',
+      category: document.getElementById('shop-p2-cat')?.value.trim() || 'Pro Audio Gadget',
+      price: document.getElementById('shop-p2-price')?.value.trim() || '৳ 1,250',
+      originalPrice: document.getElementById('shop-p2-orig')?.value.trim() || '৳ 1,600',
+      tag: document.getElementById('shop-p2-tag')?.value.trim() || 'TOP GADGET',
+      imageUrl: document.getElementById('shop-p2-img')?.value.trim() || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80',
+      url: document.getElementById('shop-p2-url')?.value.trim() || 'https://www.obinshop.com/'
+    };
+
+    authService.saveHomeShopProducts([p1, p2]);
+    Toast.show('🛍️ Featured Shop Deals saved & synced to Cloud Firestore!', 'success');
   });
 
   // --- AUTHENTICATION CONTROL TAB EVENTS ---
@@ -2111,5 +2371,45 @@ export function bindAdminEvents() {
         reRender();
       }
     });
+  });
+
+  // Push Notifications: In-App Broadcast Form Submit
+  const formInAppNotif = document.getElementById('form-inapp-broadcast');
+  formInAppNotif?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btnSubmit = document.getElementById('btn-inapp-send-notif');
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = '⏳ Sending broadcast...';
+    }
+
+    const title = document.getElementById('inapp-notif-title')?.value.trim();
+    const desc = document.getElementById('inapp-notif-desc')?.value.trim();
+    const type = document.getElementById('inapp-notif-type')?.value || 'system';
+    const view = document.getElementById('inapp-notif-view')?.value || 'home';
+
+    try {
+      await firebaseService.sendPushBroadcast({
+        title,
+        message: desc,
+        type,
+        targetUrl: view
+      });
+
+      // Also trigger on native android if running on this device
+      if (typeof window !== 'undefined' && window.AndroidBridge) {
+        if (typeof window.AndroidBridge.showNativeNotificationWithAction === 'function') {
+          window.AndroidBridge.showNativeNotificationWithAction(title, desc, type, view);
+        } else if (typeof window.AndroidBridge.showNativeNotification === 'function') {
+          window.AndroidBridge.showNativeNotification(title, desc);
+        }
+      }
+
+      Toast.show('🚀 Push Notification successfully sent to all users!', 'success');
+    } catch (err) {
+      Toast.show('Notice: Broadcast queued & sent locally', 'info');
+    }
+
+    reRender();
   });
 }

@@ -120,11 +120,17 @@ class AuthService {
     return this.authSettings || { ...defaultAuthSettings };
   }
 
-  async saveAuthSettings(newSettings) {
+  applyAuthSettings(newSettings) {
+    if (!newSettings) return this.authSettings;
     this.authSettings = { ...this.authSettings, ...newSettings };
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('mobinx_auth_settings', JSON.stringify(this.authSettings));
     }
+    return this.authSettings;
+  }
+
+  async saveAuthSettings(newSettings) {
+    this.applyAuthSettings(newSettings);
     try {
       await firebaseService.saveToFirestore('config', 'auth_settings', this.authSettings);
       firebaseService.broadcastChange('AUTH_SETTINGS_UPDATED', this.authSettings);
@@ -260,8 +266,8 @@ class AuthService {
       this.setOnboardingCompleted(false);
     }
 
-    // 4. Push to Cloud Firestore (Never storing password!)
-    await this.syncUserToFirestore(this.user);
+    // 4. Push to Cloud Firestore asynchronously (Never storing password!)
+    this.syncUserToFirestore(this.user).catch(e => console.warn('User cloud sync notice:', e));
 
     return this.user;
   }
@@ -329,8 +335,8 @@ class AuthService {
       this.setOnboardingCompleted(false);
     }
 
-    // Sync to Cloud Firestore
-    await this.syncUserToFirestore(this.user);
+    // Sync to Cloud Firestore asynchronously in background
+    this.syncUserToFirestore(this.user).catch(e => console.warn('User cloud sync notice:', e));
 
     return this.user;
   }
@@ -367,6 +373,40 @@ class AuthService {
   async sendPasswordReset(email) {
     const cleanEmail = (email || '').toLowerCase().trim();
     return await firebaseService.sendPasswordReset(cleanEmail);
+  }
+
+  // Look up user in local memory / localStorage
+  findUserLocal(uid, email) {
+    const cleanEmail = (email || '').toLowerCase().trim();
+    return this.registeredUsers.find(u => 
+      (uid && (u.uid === uid || u.id === uid)) || 
+      (cleanEmail && u.email && u.email.toLowerCase().trim() === cleanEmail)
+    ) || null;
+  }
+
+  // Look up user from Cloud Firestore (restores across device switches / app reinstalls)
+  async findUserInCloud(uid, email) {
+    try {
+      const cloudUser = await firebaseService.getUserFromFirestore(uid, email);
+      if (cloudUser) {
+        // Cache to local registeredUsers list
+        const cleanEmail = (cloudUser.email || email || '').toLowerCase().trim();
+        const existingIdx = this.registeredUsers.findIndex(u => 
+          (cloudUser.uid && (u.uid === cloudUser.uid || u.id === cloudUser.uid)) ||
+          (cleanEmail && u.email && u.email.toLowerCase().trim() === cleanEmail)
+        );
+        if (existingIdx >= 0) {
+          this.registeredUsers[existingIdx] = { ...this.registeredUsers[existingIdx], ...cloudUser };
+        } else {
+          this.registeredUsers.unshift(cloudUser);
+        }
+        this.saveUsersDatabase();
+        return cloudUser;
+      }
+    } catch (e) {
+      console.warn('findUserInCloud note:', e);
+    }
+    return null;
   }
 
   // --- GOOGLE SIGN IN & LOGIN ---
@@ -458,8 +498,8 @@ class AuthService {
       });
     } catch(e) {}
 
-    // Immediately push to Cloud Firestore
-    await this.syncUserToFirestore(this.user);
+    // Push to Cloud Firestore asynchronously in background (zero user latency)
+    this.syncUserToFirestore(this.user).catch(e => console.warn('User cloud sync notice:', e));
 
     return this.user;
   }
@@ -753,11 +793,16 @@ class AuthService {
     return this.dynamicProducts || [];
   }
 
-  saveDynamicProducts(products) {
+  applyDynamicProducts(products) {
     this.dynamicProducts = products || [];
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('mobinx_dynamic_products', JSON.stringify(this.dynamicProducts));
     }
+    return this.dynamicProducts;
+  }
+
+  saveDynamicProducts(products) {
+    this.applyDynamicProducts(products);
     try {
       firebaseService.saveToFirestore('config', 'dynamic_products', { list: this.dynamicProducts });
       firebaseService.broadcastChange('DYNAMIC_PRODUCTS_UPDATED', this.dynamicProducts);
@@ -807,6 +852,58 @@ class AuthService {
     products = products.filter(p => p.id !== id);
     this.saveDynamicProducts(products);
     return products;
+  }
+
+  // --- HOME SHOP FEATURED PRODUCTS (2 Cards below Flash Sale) ---
+  getHomeShopProducts() {
+    const defaults = [
+      {
+        id: 'prod_1',
+        title: 'Mobin X Pro Esports Jersey',
+        category: 'Official T-Shirt',
+        price: '৳ 650',
+        originalPrice: '৳ 850',
+        tag: 'BESTSELLER',
+        imageUrl: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&q=80',
+        url: 'https://www.obinshop.com/'
+      },
+      {
+        id: 'prod_2',
+        title: 'Mobin X RGB Gaming Headset',
+        category: 'Pro Audio Gadget',
+        price: '৳ 1,250',
+        originalPrice: '৳ 1,600',
+        tag: 'TOP GADGET',
+        imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80',
+        url: 'https://www.obinshop.com/'
+      }
+    ];
+
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem('mobinx_home_shop_products');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return defaults;
+  }
+
+  applyHomeShopProducts(products) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('mobinx_home_shop_products', JSON.stringify(products));
+    }
+    return products;
+  }
+
+  saveHomeShopProducts(products) {
+    this.applyHomeShopProducts(products);
+    try {
+      firebaseService.saveToFirestore('config', 'shop_products', { products });
+      firebaseService.broadcastChange('SHOP_PRODUCTS_UPDATED', products);
+    } catch(e) {}
   }
 
   // --- HERO BANNERS MANAGEMENT ---
@@ -1046,11 +1143,17 @@ class AuthService {
     return this.homePopup || { ...defaultHomeNoticePopup };
   }
 
-  async saveHomeNoticePopup(popupData) {
+  applyHomeNoticePopup(popupData) {
+    if (!popupData) return this.homePopup;
     this.homePopup = { ...this.homePopup, ...popupData };
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('mobinx_home_popup', JSON.stringify(this.homePopup));
     }
+    return this.homePopup;
+  }
+
+  async saveHomeNoticePopup(popupData) {
+    this.applyHomeNoticePopup(popupData);
     try {
       await firebaseService.saveToFirestore('config', 'home_popup', this.homePopup);
     } catch(e) {}
@@ -1062,11 +1165,17 @@ class AuthService {
     return this.appUpdateConfig || { ...defaultAppUpdateConfig };
   }
 
-  async saveAppUpdateConfig(updateData) {
+  applyAppUpdateConfig(updateData) {
+    if (!updateData) return this.appUpdateConfig;
     this.appUpdateConfig = { ...this.appUpdateConfig, ...updateData };
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('mobinx_app_update', JSON.stringify(this.appUpdateConfig));
     }
+    return this.appUpdateConfig;
+  }
+
+  async saveAppUpdateConfig(updateData) {
+    this.applyAppUpdateConfig(updateData);
     try {
       await firebaseService.saveToFirestore('config', 'app_update', this.appUpdateConfig);
     } catch(e) {}
