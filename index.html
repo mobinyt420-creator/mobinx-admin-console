@@ -5963,8 +5963,9 @@ function bindCurrentTabEvents() {
     let sa = savedServiceAccount;
     if (!sa && typeof db !== 'undefined') {
       try {
-        const snap = await db.collection('config').doc('fcm_service_account').get();
-        if (snap.exists && snap.data()?.credentials) {
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const snap = await getDoc(doc(db, 'config', 'fcm_service_account'));
+        if (snap.exists() && snap.data()?.credentials) {
           sa = snap.data().credentials;
           savedServiceAccount = sa;
           updateFcmUI(sa);
