@@ -1621,6 +1621,11 @@ textarea.form-control {
           <span>Users Directory</span>
           <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">Realtime</span>
         </div>
+        <div class="nav-item" data-tab="referrals">
+          <span class="icon">🎁</span>
+          <span>Referral Tracking</span>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">Rewards</span>
+        </div>
       </nav>
 
       <div class="sidebar-footer" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
@@ -1776,6 +1781,18 @@ function setStorage(key, val) {
   }
 }
 
+// XSS Sanitizer for rendering untrusted user inputs
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
 // Known legacy test dummy emails to filter out
 const legacyDummyEmails = [
   'guest@mobinx.app',
@@ -1841,7 +1858,7 @@ async function initFirebase() {
         const local = getStorage('mobinx_registered_users', defaultUsers);
         state.users = local.filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim()));
       }
-      if (state.activeTab === 'users' || state.activeTab === 'overview') {
+      if (state.activeTab === 'users' || state.activeTab === 'overview' || state.activeTab === 'referrals') {
         renderCurrentTab();
       }
     }, (err) => console.warn('Users onSnapshot notice:', err.message));
@@ -1862,7 +1879,7 @@ async function initFirebase() {
             state.users.unshift(u);
           }
           setStorage('mobinx_registered_users', state.users);
-          if (state.activeTab === 'users' || state.activeTab === 'overview') {
+          if (state.activeTab === 'users' || state.activeTab === 'overview' || state.activeTab === 'referrals') {
             renderCurrentTab();
           }
         }
@@ -2214,6 +2231,7 @@ const state = {
   notifications: getStorage('mobinx_admin_notifications', []),
   users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
   userSearchQuery: '',
+  referralSearchQuery: '',
   modalCallback: null
 };
 
@@ -3368,6 +3386,18 @@ function renderUsers() {
                       ` : ''}
                     </div>
 
+                    <!-- Referral Program Badges -->
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted); flex-wrap: wrap; margin-top: 2px;">
+                      ${u.referredBy ? `
+                        <span style="background: rgba(16, 185, 129, 0.12); color: #34d399; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.25);">
+                          🎁 Referred by: <strong>${u.referredBy}</strong>
+                        </span>
+                      ` : ''}
+                      <span style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25);">
+                        🔑 Invite Code: <strong>${u.referralCode || ('MOBIN' + (u.userId || ''))}</strong> (${u.referralCount || 0} friends)
+                      </span>
+                    </div>
+
                     <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">
                       Registered: ${u.registeredDate || 'Recently'} • ${u.platform || 'Android Mobile'}
                     </div>
@@ -3390,6 +3420,260 @@ function renderUsers() {
             `;
           }).join('')}
         </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
+// TAB: REFERRAL TRACKING & ANALYTICS
+// ==========================================
+function renderReferrals() {
+  const users = state.users || [];
+  const query = (state.referralSearchQuery || '').toLowerCase().trim();
+
+  // Map referral codes to users
+  const codeToUser = {};
+  users.forEach(u => {
+    const code = (u.referralCode || '').trim().toUpperCase();
+    if (code) codeToUser[code] = u;
+    if (u.userId) codeToUser['MOBIN' + u.userId] = u;
+  });
+
+  // Calculate referrals per code
+  const codeStats = {};
+  const referredList = [];
+
+  users.forEach(u => {
+    const refCode = (u.referredBy || '').trim().toUpperCase();
+    if (refCode) {
+      codeStats[refCode] = (codeStats[refCode] || 0) + 1;
+      referredList.push({
+        referee: u,
+        code: refCode,
+        referrer: codeToUser[refCode] || null,
+        joinedAt: u.registeredDate || 'Recently'
+      });
+    }
+  });
+
+  // Compile Leaderboard of Referrers
+  const leaderMap = new Map();
+  users.forEach(u => {
+    const code = (u.referralCode || '').trim().toUpperCase();
+    const countFromReferees = code ? (codeStats[code] || 0) : 0;
+    const directCount = u.referralCount || 0;
+    const totalCount = Math.max(countFromReferees, directCount);
+
+    if (totalCount > 0 || (u.referralEarnings && u.referralEarnings > 0)) {
+      leaderMap.set(u.id || u.uid || u.email, {
+        user: u,
+        code: code || ('MOBIN' + (u.userId || '')),
+        count: totalCount,
+        earnings: u.referralEarnings || (totalCount * 100)
+      });
+    }
+  });
+
+  const leaderboard = Array.from(leaderMap.values()).sort((a, b) => b.count - a.count);
+
+  // Totals
+  const totalReferred = referredList.length;
+  const totalActiveReferrers = leaderboard.length;
+  const totalDiamondsEarned = (totalReferred * 100) + leaderboard.reduce((acc, curr) => acc + (curr.earnings || 0), 0);
+
+  // Filter lists based on search query
+  const filteredReferred = referredList.filter(item => {
+    if (!query) return true;
+    const rName = (item.referee.fullName || item.referee.username || '').toLowerCase();
+    const rEmail = (item.referee.email || '').toLowerCase();
+    const rPhone = (item.referee.phone || '').toLowerCase();
+    const c = item.code.toLowerCase();
+    const invName = item.referrer ? (item.referrer.fullName || item.referrer.username || '').toLowerCase() : '';
+    return rName.includes(query) || rEmail.includes(query) || rPhone.includes(query) || c.includes(query) || invName.includes(query);
+  });
+
+  const filteredLeaders = leaderboard.filter(item => {
+    if (!query) return true;
+    const name = (item.user.fullName || item.user.username || '').toLowerCase();
+    const email = (item.user.email || '').toLowerCase();
+    const code = item.code.toLowerCase();
+    return name.includes(query) || email.includes(query) || code.includes(query);
+  });
+
+  return `
+    <div class="tab-pane active" id="tab-referrals">
+      
+      <!-- Top Metrics Overview Cards -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
+        <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Players</span>
+            <span style="font-size: 20px;">👥</span>
+          </div>
+          <div style="font-size: 24px; font-weight: 900; color: #38bdf8;">${users.length}</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Registered platform users</div>
+        </div>
+
+        <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Joined via Referral</span>
+            <span style="font-size: 20px;">🎁</span>
+          </div>
+          <div style="font-size: 24px; font-weight: 900; color: #34d399;">${totalReferred}</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Claimed +100 💎 welcome bonus</div>
+        </div>
+
+        <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Active Referrers</span>
+            <span style="font-size: 20px;">👑</span>
+          </div>
+          <div style="font-size: 24px; font-weight: 900; color: #f59e0b;">${totalActiveReferrers}</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Invited 1 or more friends</div>
+        </div>
+
+        <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Bonus Diamonds Awarded</span>
+            <span style="font-size: 20px;">💎</span>
+          </div>
+          <div style="font-size: 24px; font-weight: 900; color: #a855f7;">${totalDiamondsEarned} 💎</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Distributed to players</div>
+        </div>
+      </div>
+
+      <!-- Main Referral Management Card -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-header" style="flex-wrap: wrap; gap: 12px; justify-content: space-between;">
+          <div>
+            <div class="card-title">🎁 Referral Tracking & Rewards Center</div>
+            <div class="card-subtitle">Real-time overview of who referred whom, friends invited, and bonus distribution</div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" id="btn-export-referrals-csv" style="padding: 6px 12px; font-size: 12px;">
+              📥 Export Referrals CSV
+            </button>
+            <button class="btn btn-secondary" id="btn-refresh-referrals" style="padding: 6px 12px; font-size: 12px;">
+              🔄 Refresh Cloud
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div style="margin-bottom: 16px;">
+          <input type="text" id="input-search-referrals" class="form-control" placeholder="🔍 Search referee, inviter name, Gmail, phone, or referral code..." value="${state.referralSearchQuery || ''}" />
+        </div>
+
+        <!-- Top Referrers Leaderboard -->
+        <div style="margin-bottom: 24px;">
+          <h4 style="font-size: 14px; font-weight: 800; color: var(--primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span>🏆</span> Top Referrers Leaderboard (${filteredLeaders.length})
+          </h4>
+          ${filteredLeaders.length === 0 ? `
+            <div style="text-align: center; padding: 20px; background: var(--bg-body); border-radius: var(--radius-md); border: 1px dashed var(--border-color); font-size: 12.5px; color: var(--text-muted);">
+              No active referrers recorded yet. When players share their invite code, their ranking will appear here.
+            </div>
+          ` : `
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
+                    <th style="padding: 8px;">Rank</th>
+                    <th style="padding: 8px;">Player</th>
+                    <th style="padding: 8px;">Referral Code</th>
+                    <th style="padding: 8px; text-align: center;">Friends Invited</th>
+                    <th style="padding: 8px; text-align: right;">Diamonds Earned</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredLeaders.map((item, idx) => {
+                    const rankMedal = idx === 0 ? '🥇 #1' : idx === 1 ? '🥈 #2' : idx === 2 ? '🥉 #3' : `#${idx + 1}`;
+                    return `
+                      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <td style="padding: 10px 8px; font-weight: 800; color: ${idx < 3 ? '#f59e0b' : 'var(--text-muted)'};">${rankMedal}</td>
+                        <td style="padding: 10px 8px;">
+                          <div style="font-weight: 700; color: var(--text-main);">${escapeHtml(item.user.fullName || item.user.username || 'Player')}</div>
+                          <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(item.user.email || item.user.phone || '')}</div>
+                        </td>
+                        <td style="padding: 10px 8px;">
+                          <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 800; font-size: 11px; letter-spacing: 0.5px;">
+                            ${escapeHtml(item.code)}
+                          </span>
+                        </td>
+                        <td style="padding: 10px 8px; text-align: center; font-weight: 800; color: #34d399; font-size: 13px;">
+                          ${item.count} friends
+                        </td>
+                        <td style="padding: 10px 8px; text-align: right; font-weight: 800; color: #a855f7;">
+                          +${item.earnings} 💎
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+
+        <!-- Detailed Referral Activity / Referee Log -->
+        <div>
+          <h4 style="font-size: 14px; font-weight: 800; color: var(--primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> Referral Sign-Up Log (${filteredReferred.length})
+          </h4>
+          ${filteredReferred.length === 0 ? `
+            <div style="text-align: center; padding: 24px; background: var(--bg-body); border-radius: var(--radius-md); border: 1px dashed var(--border-color); font-size: 12.5px; color: var(--text-muted);">
+              ${query ? 'No referrals found matching "' + escapeHtml(query) + '".' : 'No users have joined via a referral code yet. When new players apply an invite code during sign-up, details will appear here.'}
+            </div>
+          ` : `
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
+                    <th style="padding: 8px;">Referee (New User)</th>
+                    <th style="padding: 8px;">Code Used</th>
+                    <th style="padding: 8px;">Referred By (Inviter)</th>
+                    <th style="padding: 8px; text-align: center;">Welcome Bonus</th>
+                    <th style="padding: 8px; text-align: right;">Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredReferred.map(item => `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 10px 8px;">
+                        <div style="font-weight: 700; color: var(--text-main);">${escapeHtml(item.referee.fullName || item.referee.username || 'New Player')}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(item.referee.email || '')} ${item.referee.phone ? '• ' + escapeHtml(item.referee.phone) : ''}</div>
+                      </td>
+                      <td style="padding: 10px 8px;">
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 800; font-size: 11px;">
+                          ${escapeHtml(item.code)}
+                        </span>
+                      </td>
+                      <td style="padding: 10px 8px;">
+                        ${item.referrer ? `
+                          <div style="font-weight: 700; color: var(--text-main);">${escapeHtml(item.referrer.fullName || item.referrer.username)}</div>
+                          <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(item.referrer.email || '')}</div>
+                        ` : `
+                          <span style="color: var(--text-muted); font-size: 11px;">Code: ${escapeHtml(item.code)} (Admin/System)</span>
+                        `}
+                      </td>
+                      <td style="padding: 10px 8px; text-align: center;">
+                        <span class="badge" style="background: rgba(250, 204, 21, 0.15); color: #facc15; font-weight: 800;">
+                          +100 💎
+                        </span>
+                      </td>
+                      <td style="padding: 10px 8px; text-align: right; color: var(--text-muted); font-size: 11.5px;">
+                        ${item.joinedAt}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+
       </div>
 
     </div>
@@ -3772,6 +4056,57 @@ function exportUsersJSON() {
   showToast('📄 Users Database (JSON) exported successfully!', 'success');
 }
 
+function exportReferralsCSV() {
+  const users = state.users || [];
+  const codeToUser = {};
+  users.forEach(u => {
+    const code = (u.referralCode || '').trim().toUpperCase();
+    if (code) codeToUser[code] = u;
+    if (u.userId) codeToUser['MOBIN' + u.userId] = u;
+  });
+
+  const referredList = [];
+  users.forEach(u => {
+    const refCode = (u.referredBy || '').trim().toUpperCase();
+    if (refCode) {
+      referredList.push({
+        referee: u,
+        code: refCode,
+        referrer: codeToUser[refCode] || null,
+        joinedAt: u.registeredDate || 'Recently'
+      });
+    }
+  });
+
+  let csv = "Referee User ID,Referee Name,Referee Email,Referee Phone,Referee FF UID,Referral Code Used,Inviter Name,Inviter Email,Bonus Diamonds,Join Date\n";
+  referredList.forEach(item => {
+    const row = [
+      item.referee.userId || item.referee.playerNumber || '',
+      `"${(item.referee.fullName || item.referee.username || '').replace(/"/g, '""')}"`,
+      `"${(item.referee.email || '').replace(/"/g, '""')}"`,
+      `"${(item.referee.phone || '').replace(/"/g, '""')}"`,
+      `"${(item.referee.ffUid || '').replace(/"/g, '""')}"`,
+      `"${item.code}"`,
+      `"${(item.referrer ? (item.referrer.fullName || item.referrer.username || '') : 'System/Admin').replace(/"/g, '""')}"`,
+      `"${(item.referrer ? (item.referrer.email || '') : '').replace(/"/g, '""')}"`,
+      "100",
+      `"${(item.joinedAt || '').replace(/"/g, '""')}"`
+    ];
+    csv += row.join(",") + "\n";
+  });
+
+  const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `MobinX_Referrals_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📥 Referrals CSV report exported successfully!', 'success');
+}
+
 // ==========================================
 // 6. MODAL SYSTEM
 // ==========================================
@@ -4079,6 +4414,10 @@ function renderCurrentTab() {
     case 'users':
       if (title) title.textContent = 'Users Directory';
       content.innerHTML = renderUsers();
+      break;
+    case 'referrals':
+      if (title) title.textContent = 'Referral Tracking & Analytics';
+      content.innerHTML = renderReferrals();
       break;
     default:
       content.innerHTML = renderOverview();
@@ -5112,6 +5451,26 @@ function bindCurrentTabEvents() {
     renderCurrentTab();
   });
 
+  // Referrals: Search Filter
+  const refSearchInput = document.getElementById('input-search-referrals');
+  if (refSearchInput) {
+    refSearchInput.addEventListener('input', (e) => {
+      state.referralSearchQuery = e.target.value;
+      renderCurrentTab();
+      const nextInput = document.getElementById('input-search-referrals');
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+      }
+    });
+  }
+
+  // Referrals: Export & Refresh
+  document.getElementById('btn-export-referrals-csv')?.addEventListener('click', exportReferralsCSV);
+  document.getElementById('btn-refresh-referrals')?.addEventListener('click', () => {
+    document.getElementById('btn-refresh-users')?.click();
+  });
+
   // Users: Refresh Cloud
   document.getElementById('btn-refresh-users')?.addEventListener('click', async () => {
     showToast('Syncing fresh from Cloud Firestore...', 'info');
@@ -5768,16 +6127,34 @@ function bindNavigation() {
 }
 
 // ==========================================
-// 10. MASTER ADMIN AUTHENTICATION CONTROLLER
+// 10. MASTER ADMIN AUTHENTICATION CONTROLLER (HARDENED)
 // ==========================================
-const ADMIN_MASTER_CREDENTIALS = {
-  emails: ['mobinyt420@gmail.com', 'mrmobin1m@gmail.com'],
-  passwords: ['mrmobin', 'mrmobin12@#??']
-};
+const ADMIN_AUTHORIZED_EMAILS = [
+  'mobinyt420@gmail.com', 
+  'mrmobin1m@gmail.com'
+];
+
+// Cryptographic SHA-256 hashes (protects against source-code password discovery)
+const ADMIN_PASSWORD_HASHES = [
+  'fa420ccfd9d837fd224d3a7a438d1fb9d2e0de8c80b11a0a03ffaa68b144d38f', // Hash 1
+  'e83102ec6e80c70c1783763f951a9274bef207e0d7c80d9fef972c10f472bb72'  // Hash 2
+];
+
+async function sha256Hex(str) {
+  try {
+    const enc = new TextEncoder().encode(str);
+    const hashBuf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return '';
+  }
+}
 
 function isAdminAuthenticated() {
-  return localStorage.getItem('mobinx_admin_authenticated') === 'true' || 
-         sessionStorage.getItem('mobinx_admin_authenticated') === 'true';
+  const authEmail = (localStorage.getItem('mobinx_admin_email') || sessionStorage.getItem('mobinx_admin_email') || '').toLowerCase().trim();
+  const isFlag = localStorage.getItem('mobinx_admin_authenticated') === 'true' || 
+                 sessionStorage.getItem('mobinx_admin_authenticated') === 'true';
+  return isFlag && ADMIN_AUTHORIZED_EMAILS.includes(authEmail);
 }
 
 function showAdminApp() {
@@ -5822,11 +6199,24 @@ function bindAdminAuthEvents() {
 
     if (errorBox) errorBox.style.display = 'none';
 
-    // Verify against authorized master credentials
-    const isEmailValid = ADMIN_MASTER_CREDENTIALS.emails.includes(email);
-    const isPassValid = ADMIN_MASTER_CREDENTIALS.passwords.includes(password);
+    // Verify against authorized master credentials using SHA-256
+    const isEmailAuthorized = ADMIN_AUTHORIZED_EMAILS.includes(email);
+    const inputHash = await sha256Hex(password);
+    const isPassValid = ADMIN_PASSWORD_HASHES.includes(inputHash);
 
-    if (isEmailValid && isPassValid) {
+    // Also attempt Firebase Authentication sign in for cloud session token
+    let firebaseSessionOk = false;
+    try {
+      if (auth) {
+        const { signInWithEmailAndPassword } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+        await signInWithEmailAndPassword(auth, email, password);
+        firebaseSessionOk = true;
+      }
+    } catch(fbErr) {
+      console.warn('Firebase admin sign-in attempt notice:', fbErr.message);
+    }
+
+    if (isEmailAuthorized && (isPassValid || firebaseSessionOk)) {
       if (rememberMe) {
         localStorage.setItem('mobinx_admin_authenticated', 'true');
         localStorage.setItem('mobinx_admin_email', email);
@@ -5835,7 +6225,7 @@ function bindAdminAuthEvents() {
         sessionStorage.setItem('mobinx_admin_email', email);
       }
       showAdminApp();
-      showToast('🎉 Master Administrator authenticated successfully!', 'success');
+      showToast('🎉 Master Administrator authenticated securely!', 'success');
       return;
     }
 
