@@ -1985,24 +1985,30 @@ async function initFirebase() {
     // 9. Live Authentication Settings Listener
     onSnapshot(doc(db, 'config', 'auth_settings'), (docSnap) => {
       if (docSnap.exists()) {
-        state.authSettings = { ...defaultAuthSettings, ...docSnap.data() };
+        const d = docSnap.data();
+        state.authSettings = { ...defaultAuthSettings, ...d };
         setStorage('mobinx_auth_settings', state.authSettings);
         if (state.activeTab === 'auth') {
           const s = state.authSettings;
+          const isManualLoginOn = s.manualLoginEnabled !== false && s.manualLoginEnabled !== 'false' && s.allowManualLogin !== false;
+          const isManualRegOn = s.manualRegistrationEnabled !== false && s.manualRegistrationEnabled !== 'false' && s.allowManualRegistration !== false;
+          const isGoogleOn = s.googleLoginEnabled !== false && s.googleLoginEnabled !== 'false' && s.allowGoogleAuth !== false;
+          const isSystemOn = s.authSystemEnabled !== false && s.authSystemEnabled !== 'false';
+
           const elSystem = document.getElementById('auth-adm-system');
-          if (elSystem) elSystem.checked = s.authSystemEnabled !== false;
+          if (elSystem) elSystem.checked = isSystemOn;
           const elGoogle = document.getElementById('auth-adm-google');
-          if (elGoogle) elGoogle.checked = s.googleLoginEnabled !== false;
+          if (elGoogle) elGoogle.checked = isGoogleOn;
           const elGooglePhone = document.getElementById('auth-adm-google-phone-ver');
-          if (elGooglePhone) elGooglePhone.checked = s.googlePhoneVerificationEnabled === true;
+          if (elGooglePhone) elGooglePhone.checked = s.googlePhoneVerificationEnabled === true || s.googlePhoneVerificationEnabled === 'true';
           const elManualLogin = document.getElementById('auth-adm-manual-login');
-          if (elManualLogin) elManualLogin.checked = s.manualLoginEnabled !== false;
+          if (elManualLogin) elManualLogin.checked = isManualLoginOn;
           const elManualReg = document.getElementById('auth-adm-manual-reg');
-          if (elManualReg) elManualReg.checked = s.manualRegistrationEnabled !== false;
+          if (elManualReg) elManualReg.checked = isManualRegOn;
           const elEmailVer = document.getElementById('auth-adm-email-ver');
-          if (elEmailVer) elEmailVer.checked = s.manualEmailVerificationEnabled === true;
+          if (elEmailVer) elEmailVer.checked = s.manualEmailVerificationEnabled === true || s.manualEmailVerificationEnabled === 'true';
           const elPhoneVer = document.getElementById('auth-adm-phone-ver');
-          if (elPhoneVer) elPhoneVer.checked = s.manualPhoneVerificationEnabled === true;
+          if (elPhoneVer) elPhoneVer.checked = s.manualPhoneVerificationEnabled === true || s.manualPhoneVerificationEnabled === 'true';
         }
       }
     }, (err) => console.warn('AuthSettings onSnapshot notice:', err.message));
@@ -2040,7 +2046,21 @@ function updateFirebaseStatusBadge(connected) {
 }
 
 async function syncToFirestore(collectionName, docId, data) {
-  if (!db) return false;
+  if (!db) {
+    try {
+      if (typeof initFirebase === 'function') await initFirebase();
+    } catch (_) {}
+  }
+  if (!db) {
+    for (let i = 0; i < 6; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      if (db) break;
+    }
+  }
+  if (!db) {
+    console.warn(`Firestore sync note [${collectionName}]: db not ready`);
+    return false;
+  }
   try {
     if (!fsDoc || !fsSetDoc) {
       const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
@@ -4226,12 +4246,18 @@ function renderNotifications() {
               </span>
             </div>
             <div id="fcm-credentials-panel" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
-              <label class="form-label" style="font-size: 11.5px; color: #cbd5e1; margin-bottom: 5px;">
-                Firebase Service Account JSON (Paste or Upload once):
-              </label>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+                <label class="form-label" style="font-size: 11.5px; color: #cbd5e1; margin: 0;">
+                  Firebase Service Account JSON (Paste or Upload once):
+                </label>
+                <label class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin: 0; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">
+                  📁 Upload Service Account JSON File
+                  <input type="file" id="fcm-sa-file-input" accept=".json,application/json" style="display: none;">
+                </label>
+              </div>
               <textarea id="input-fcm-service-account" class="form-control" style="font-size: 11px; font-family: monospace; min-height: 85px; padding: 8px 10px; background: #0f172a; border-color: #334155; color: #e2e8f0;" placeholder='{"type": "service_account", "project_id": "obin-shop", "private_key": "...", ...}'></textarea>
               <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
-                <button type="button" id="btn-save-fcm-sa" class="btn btn-primary" style="padding: 6px 14px; font-size: 11.5px;">Save to Cloud</button>
+                <button type="button" id="btn-save-fcm-sa" class="btn btn-primary" style="padding: 6px 14px; font-size: 11.5px;">💾 Save to Cloud</button>
                 <button type="button" id="btn-clear-fcm-sa" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11.5px; color: #f87171; border-color: rgba(239,68,68,0.3);">Clear</button>
                 <span style="font-size: 10.5px; color: #94a3b8;">💡 Firebase Console > Project Settings > Service accounts > "Generate new private key"</span>
               </div>
@@ -5446,21 +5472,47 @@ function bindCurrentTabEvents() {
     broadcastSync('ADMOB_CONFIG_UPDATED', state.admob);
   });
 
-  // Push Broadcast
+  // Push Broadcast (Quick Announcement Broadcast)
   document.getElementById('form-broadcast-push')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = document.getElementById('push-msg-input').value.trim();
+    if (!msg) return;
+
+    const notifId = `notif_${Date.now()}`;
+    const broadcastId = `bc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const quickNotif = {
+      id: notifId,
+      broadcastId: broadcastId,
+      title: 'OBIN Official Broadcast',
+      message: msg,
+      desc: msg,
+      type: 'announcement',
+      targetUrl: 'home',
+      actionUrl: 'home',
+      timestamp: Date.now(),
+      createdAt: Date.now(),
+      active: true
+    };
+
     state.notices.pushNotification = {
       message: msg,
       timestamp: Date.now()
     };
+    state.notifications.unshift(quickNotif);
 
     setStorage('mobinx_notices_config', state.notices);
-    showToast('📢 Push notification dispatched to all apps!', 'success');
+    setStorage('mobinx_admin_notifications', state.notifications);
+    showToast('📢 Push notification dispatched to all apps & devices!', 'success');
     document.getElementById('push-msg-input').value = '';
 
-    await syncToFirestore('config', 'notices', state.notices);
+    await Promise.all([
+      syncToFirestore('config', 'notices', state.notices),
+      syncToFirestore('notifications', notifId, quickNotif),
+      dispatchFcmToAllDevices(quickNotif)
+    ]);
+
     broadcastSync('PUSH_BROADCAST', state.notices.pushNotification);
+    broadcastSync('PUSH_NOTIFICATION_SENT', quickNotif);
   });
 
   // Users: Export Buttons
@@ -5644,8 +5696,22 @@ function bindCurrentTabEvents() {
       topUpEnabled: true
     };
 
+    // Keep related authentication keys strictly consistent across all clients & Flutter app
+    if (key === 'manualLoginEnabled') {
+      state.authSettings.manualLogin = val;
+      state.authSettings.allowManualLogin = val;
+      state.authSettings.manual_login = val;
+    } else if (key === 'manualRegistrationEnabled') {
+      state.authSettings.manualRegistration = val;
+      state.authSettings.allowManualRegistration = val;
+      state.authSettings.manualSignUpEnabled = val;
+    } else if (key === 'googleLoginEnabled') {
+      state.authSettings.allowGoogleAuth = val;
+      state.authSettings.googleSignUpEnabled = val;
+    }
+
     setStorage('mobinx_auth_settings', state.authSettings);
-    showToast(`🔐 ${label}: ${val ? 'ON (Active)' : 'OFF (Disabled)'}`, 'success');
+    showToast(`🔐 ${label}: ${val ? 'ON (Active)' : 'OFF (Disabled)'}`, val ? 'success' : 'warning');
 
     await syncToFirestore('config', 'auth_settings', state.authSettings);
     broadcastSync('AUTH_SETTINGS_UPDATED', state.authSettings);
@@ -5678,6 +5744,11 @@ function bindCurrentTabEvents() {
         const el = document.getElementById(id);
         if (el) state.authSettings[key] = el.checked;
       });
+      state.authSettings.manualLogin = state.authSettings.manualLoginEnabled;
+      state.authSettings.allowManualLogin = state.authSettings.manualLoginEnabled;
+      state.authSettings.manualRegistration = state.authSettings.manualRegistrationEnabled;
+      state.authSettings.allowManualRegistration = state.authSettings.manualRegistrationEnabled;
+      state.authSettings.allowGoogleAuth = state.authSettings.googleLoginEnabled;
       state.authSettings.topUpEnabled = true;
       setStorage('mobinx_auth_settings', state.authSettings);
       showToast('🔐 All authentication settings saved successfully!', 'success');
@@ -5897,27 +5968,58 @@ function bindCurrentTabEvents() {
     }
   }
 
-  // Load from Cloud Firestore
-  if (typeof db !== 'undefined') {
-    db.collection('config').doc('fcm_service_account').get().then(doc => {
-      if (doc.exists && doc.data()?.credentials) {
-        savedServiceAccount = doc.data().credentials;
-        localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(savedServiceAccount));
-        updateFcmUI(savedServiceAccount);
-      } else {
-        updateFcmUI(savedServiceAccount);
+  // Load from Cloud Firestore safely using modular Firestore SDK
+  (async function loadCloudFcmSa() {
+    try {
+      if (!savedServiceAccount && db) {
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const snap = await getDoc(doc(db, 'config', 'fcm_service_account'));
+        if (snap.exists() && snap.data()?.credentials) {
+          savedServiceAccount = snap.data().credentials;
+          localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(savedServiceAccount));
+        }
       }
-    }).catch(() => {
+    } catch (e) {
+      console.warn('FCM Service Account load notice:', e.message);
+    } finally {
       updateFcmUI(savedServiceAccount);
-    });
-  } else {
-    updateFcmUI(savedServiceAccount);
-  }
+    }
+  })();
 
   btnToggleFcm?.addEventListener('click', () => {
     if (panelFcm) {
       panelFcm.style.display = panelFcm.style.display === 'none' ? 'block' : 'none';
     }
+  });
+
+  // Direct JSON File Upload for Service Account credentials
+  const fileInputFcmSa = document.getElementById('fcm-sa-file-input');
+  fileInputFcmSa?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const text = ev.target?.result;
+      if (inputFcmSa) inputFcmSa.value = text;
+      try {
+        const parsed = JSON.parse(text);
+        if (!parsed.client_email || !parsed.private_key) {
+          showToast('JSON file is missing client_email or private_key.', 'error');
+          return;
+        }
+        savedServiceAccount = parsed;
+        localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(parsed));
+        if (typeof syncToFirestore === 'function') {
+          await syncToFirestore('config', 'fcm_service_account', { credentials: parsed, updatedAt: Date.now() });
+        }
+        updateFcmUI(parsed);
+        showToast(`✅ Service Account uploaded & activated: ${parsed.client_email.split('@')[0]}`, 'success');
+        if (panelFcm) panelFcm.style.display = 'none';
+      } catch (err) {
+        showToast('Invalid JSON file: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file);
   });
 
   btnSaveFcmSa?.addEventListener('click', async () => {
@@ -5961,7 +6063,7 @@ function bindCurrentTabEvents() {
   // Helper: Dispatch FCM Push to Android Devices (Background & Terminated Wakeup)
   async function dispatchFcmToAllDevices(notif) {
     let sa = savedServiceAccount;
-    if (!sa && typeof db !== 'undefined') {
+    if (!sa && typeof db !== 'undefined' && db) {
       try {
         const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         const snap = await getDoc(doc(db, 'config', 'fcm_service_account'));
@@ -5973,7 +6075,7 @@ function bindCurrentTabEvents() {
       } catch (_) {}
     }
 
-    // Dispatch via serverless proxy /api/send-fcm (FCM HTTP v1)
+    // Dispatch via serverless proxy /api/send-fcm (FCM HTTP v1 with dual topics + direct tokens)
     try {
       const resp = await fetch('/api/send-fcm', {
         method: 'POST',
