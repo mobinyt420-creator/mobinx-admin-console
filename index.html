@@ -4200,18 +4200,41 @@ function renderNotifications() {
             <p class="card-subtitle">নিচের ফর্মটি পূরণ করে সেন্ড বাটনে চাপ দিলে সকল ইউজারের ফোনে নোটিফিকেশন পৌঁছে যাবে</p>
           </div>
 
-          <!-- Firebase Cloud Messaging (FCM) Integration Banner -->
-          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+          <!-- Firebase Cloud Messaging (FCM v1) High-Speed Engine Banner -->
+          <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-              <span style="font-size: 12px; font-weight: 800; color: #38bdf8;">🔑 Firebase Cloud Messaging (FCM) Status:</span>
-              <span id="fcm-status-badge" class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; font-size: 11px;">Dual-Layer Active</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 16px;">🚀</span>
+                <span style="font-size: 13px; font-weight: 800; color: #38bdf8; letter-spacing: 0.3px;">Firebase Cloud Messaging (FCM v1 Engine)</span>
+              </div>
+              <span id="fcm-status-badge" class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; font-size: 11px; font-weight: 700; border: 1px solid rgba(16,185,129,0.35); padding: 4px 10px; border-radius: 20px;">
+                🟢 Dual-Sync Active
+              </span>
             </div>
-            <div style="display: flex; gap: 8px;">
-              <input type="password" id="input-fcm-server-key" class="form-control" style="font-size: 11.5px; padding: 7px 10px;" placeholder="Firebase Cloud Messaging Server Key (Paste here to wake closed apps)" />
-              <button type="button" id="btn-save-fcm-key" class="btn btn-secondary" style="padding: 7px 14px; font-size: 11.5px; white-space: nowrap; background: #1e293b; color: #38bdf8; border: 1px solid #334155;">Save Key</button>
+            <p style="font-size: 11.5px; color: #94a3b8; margin: 0 0 10px 0; line-height: 1.45;">
+              এই সিস্টেমটি Google FCM v1 ও Cloud Firestore ডুয়াল-লেয়ার ব্যবহার করে ১০,০০০ থেকে ১,০০,০০০+ ইউজারের ফোনে ব্যাকগ্রাউন্ডে বা অ্যাপ বন্ধ/কিল্ড থাকলেও সাথে সাথে নোটিফিকেশন পৌঁছে দেয়।
+            </p>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button type="button" id="btn-toggle-fcm-credentials" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11.5px; background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; cursor: pointer;">
+                ⚙️ Service Account Credentials (FCM v1)
+              </button>
+              <a href="https://console.firebase.google.com/project/obin-shop/notification/compose" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11.5px; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                🔥 Open Firebase Console (Direct Push)
+              </a>
+              <span id="fcm-sa-saved-status" style="font-size: 11px; color: #64748b;">
+                Auto-syncs via Cloud Firestore
+              </span>
             </div>
-            <div style="font-size: 10.5px; color: #94a3b8; margin-top: 5px; line-height: 1.4;">
-              💡 অ্যাপ বন্ধ থাকলেও নোটিফিকেশন আসার জন্য Firebase Console > Project Settings > Cloud Messaging থেকে Server Key দিন।
+            <div id="fcm-credentials-panel" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+              <label class="form-label" style="font-size: 11.5px; color: #cbd5e1; margin-bottom: 5px;">
+                Firebase Service Account JSON (Paste or Upload once):
+              </label>
+              <textarea id="input-fcm-service-account" class="form-control" style="font-size: 11px; font-family: monospace; min-height: 85px; padding: 8px 10px; background: #0f172a; border-color: #334155; color: #e2e8f0;" placeholder='{"type": "service_account", "project_id": "obin-shop", "private_key": "...", ...}'></textarea>
+              <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
+                <button type="button" id="btn-save-fcm-sa" class="btn btn-primary" style="padding: 6px 14px; font-size: 11.5px;">Save to Cloud</button>
+                <button type="button" id="btn-clear-fcm-sa" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11.5px; color: #f87171; border-color: rgba(239,68,68,0.3);">Clear</button>
+                <span style="font-size: 10.5px; color: #94a3b8;">💡 Firebase Console > Project Settings > Service accounts > "Generate new private key"</span>
+              </div>
             </div>
           </div>
 
@@ -5830,102 +5853,141 @@ function bindCurrentTabEvents() {
     }
   });
 
-  // Push Notifications: FCM Key Management
-  const fcmInput = document.getElementById('input-fcm-server-key');
-  const btnSaveFcm = document.getElementById('btn-save-fcm-key');
+  // Push Notifications: FCM v1 & Service Account Management
+  const btnToggleFcm = document.getElementById('btn-toggle-fcm-credentials');
+  const panelFcm = document.getElementById('fcm-credentials-panel');
+  const inputFcmSa = document.getElementById('input-fcm-service-account');
+  const btnSaveFcmSa = document.getElementById('btn-save-fcm-sa');
+  const btnClearFcmSa = document.getElementById('btn-clear-fcm-sa');
   const fcmBadge = document.getElementById('fcm-status-badge');
-  const savedFcmKey = localStorage.getItem('mobinx_fcm_server_key') || '';
-  if (fcmInput && savedFcmKey) {
-    fcmInput.value = savedFcmKey;
-    if (fcmBadge) {
-      fcmBadge.textContent = 'FCM Cloud Active';
-      fcmBadge.style.background = 'rgba(16,185,129,0.2)';
-      fcmBadge.style.color = '#34d399';
+  const fcmSaStatus = document.getElementById('fcm-sa-saved-status');
+  let savedServiceAccount = null;
+
+  try {
+    const localSa = localStorage.getItem('mobinx_fcm_service_account');
+    if (localSa) savedServiceAccount = JSON.parse(localSa);
+  } catch (_) {}
+
+  function updateFcmUI(sa) {
+    if (sa && (sa.client_email || sa.private_key)) {
+      if (fcmBadge) {
+        fcmBadge.textContent = '🟢 FCM v1 Active (100k+ Ready)';
+        fcmBadge.style.background = 'rgba(16,185,129,0.2)';
+        fcmBadge.style.color = '#34d399';
+        fcmBadge.style.borderColor = 'rgba(16,185,129,0.35)';
+      }
+      if (fcmSaStatus) {
+        fcmSaStatus.textContent = `✅ Connected: ${sa.client_email ? sa.client_email.split('@')[0] : 'Active'}`;
+        fcmSaStatus.style.color = '#34d399';
+      }
+      if (inputFcmSa && !inputFcmSa.value) {
+        inputFcmSa.value = JSON.stringify(sa, null, 2);
+      }
+    } else {
+      if (fcmBadge) {
+        fcmBadge.textContent = '🟢 Cloud Sync Active';
+        fcmBadge.style.background = 'rgba(56,189,248,0.2)';
+        fcmBadge.style.color = '#38bdf8';
+        fcmBadge.style.borderColor = 'rgba(56,189,248,0.35)';
+      }
+      if (fcmSaStatus) {
+        fcmSaStatus.textContent = 'Auto-syncs via Cloud Firestore';
+        fcmSaStatus.style.color = '#94a3b8';
+      }
     }
   }
 
-  btnSaveFcm?.addEventListener('click', async () => {
-    const keyVal = fcmInput?.value.trim() || '';
-    if (!keyVal) {
-      localStorage.removeItem('mobinx_fcm_server_key');
-      showToast('FCM Key cleared.', 'info');
+  // Load from Cloud Firestore
+  if (typeof db !== 'undefined') {
+    db.collection('config').doc('fcm_service_account').get().then(doc => {
+      if (doc.exists && doc.data()?.credentials) {
+        savedServiceAccount = doc.data().credentials;
+        localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(savedServiceAccount));
+        updateFcmUI(savedServiceAccount);
+      } else {
+        updateFcmUI(savedServiceAccount);
+      }
+    }).catch(() => {
+      updateFcmUI(savedServiceAccount);
+    });
+  } else {
+    updateFcmUI(savedServiceAccount);
+  }
+
+  btnToggleFcm?.addEventListener('click', () => {
+    if (panelFcm) {
+      panelFcm.style.display = panelFcm.style.display === 'none' ? 'block' : 'none';
+    }
+  });
+
+  btnSaveFcmSa?.addEventListener('click', async () => {
+    const rawVal = inputFcmSa?.value.trim() || '';
+    if (!rawVal) {
+      showToast('Please paste valid Service Account JSON.', 'error');
       return;
     }
-    localStorage.setItem('mobinx_fcm_server_key', keyVal);
     try {
-      await syncToFirestore('config', 'fcm_settings', { serverKey: keyVal, updatedAt: Date.now() });
-    } catch(e) {}
-    showToast('✅ FCM Server Key saved successfully!', 'success');
-    if (fcmBadge) {
-      fcmBadge.textContent = 'FCM Cloud Active';
-      fcmBadge.style.background = 'rgba(16,185,129,0.2)';
-      fcmBadge.style.color = '#34d399';
+      const parsed = JSON.parse(rawVal);
+      if (!parsed.client_email || !parsed.private_key) {
+        showToast('JSON must include client_email and private_key.', 'error');
+        return;
+      }
+      savedServiceAccount = parsed;
+      localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(parsed));
+      if (typeof syncToFirestore === 'function') {
+        await syncToFirestore('config', 'fcm_service_account', { credentials: parsed, updatedAt: Date.now() });
+      }
+      updateFcmUI(parsed);
+      showToast('✅ Firebase Service Account (FCM v1) saved to Cloud!', 'success');
+      if (panelFcm) panelFcm.style.display = 'none';
+    } catch (e) {
+      showToast('Invalid JSON format: ' + e.message, 'error');
     }
+  });
+
+  btnClearFcmSa?.addEventListener('click', async () => {
+    savedServiceAccount = null;
+    localStorage.removeItem('mobinx_fcm_service_account');
+    if (inputFcmSa) inputFcmSa.value = '';
+    if (typeof syncToFirestore === 'function') {
+      try {
+        await syncToFirestore('config', 'fcm_service_account', { credentials: null, updatedAt: Date.now() });
+      } catch (_) {}
+    }
+    updateFcmUI(null);
+    showToast('FCM Service Account credentials cleared.', 'info');
   });
 
   // Helper: Dispatch FCM Push to Android Devices (Background & Terminated Wakeup)
   async function dispatchFcmToAllDevices(notif) {
-    const serverKey = localStorage.getItem('mobinx_fcm_server_key') || '';
+    let sa = savedServiceAccount;
+    if (!sa && typeof db !== 'undefined') {
+      try {
+        const snap = await db.collection('config').doc('fcm_service_account').get();
+        if (snap.exists && snap.data()?.credentials) {
+          sa = snap.data().credentials;
+          savedServiceAccount = sa;
+          updateFcmUI(sa);
+        }
+      } catch (_) {}
+    }
 
-    // 1. Dispatch via local/Vercel serverless proxy /api/send-fcm (Zero CORS issues)
+    // Dispatch via serverless proxy /api/send-fcm (FCM HTTP v1)
     try {
       const resp = await fetch('/api/send-fcm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notification: notif, serverKey: serverKey })
+        body: JSON.stringify({ notification: notif, serviceAccount: sa })
       });
       if (resp.ok) {
         const resData = await resp.json();
-        console.log('✅ Server FCM Proxy dispatch result:', resData);
+        console.log('✅ FCM v1 Broadcast Result:', resData);
         if (resData.success) return true;
       }
     } catch (proxyErr) {
-      console.warn('Server proxy notice:', proxyErr.message);
+      console.warn('FCM broadcast notice:', proxyErr.message);
     }
-
-    if (!serverKey) return false;
-
-    // 2. Direct FCM Legacy HTTP fallback
-    const topics = ['all', 'all_users', 'mobinx_broadcast', 'obin_broadcast'];
-    const payloadBase = {
-      priority: 'high',
-      notification: {
-        title: notif.title,
-        body: notif.message || notif.desc,
-        sound: 'default',
-        android_channel_id: 'mobinx_high_importance_channel',
-        channel_id: 'mobinx_push_channel',
-        click_action: 'FLUTTER_NOTIFICATION_CLICK'
-      },
-      data: {
-        title: notif.title,
-        body: notif.message || notif.desc,
-        message: notif.message || notif.desc,
-        type: notif.type || 'general',
-        targetUrl: notif.targetUrl || '',
-        actionUrl: notif.actionUrl || '',
-        imageUrl: notif.imageUrl || '',
-        id: notif.id,
-        broadcastId: notif.broadcastId
-      }
-    };
-
-    try {
-      await Promise.allSettled(topics.map(t => {
-        return fetch('https://fcm.googleapis.com/fcm/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `key=${serverKey}`
-          },
-          body: JSON.stringify({ ...payloadBase, to: `/topics/${t}` })
-        });
-      }));
-      return true;
-    } catch(e) {
-      console.warn('FCM dispatch notice:', e);
-      return false;
-    }
+    return false;
   }
 
   // Push Notifications: Submit Broadcast Form
