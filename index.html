@@ -3718,7 +3718,7 @@ function renderAuthSettings() {
           </span>
         </div>
 
-        <form id="form-auth-settings" style="display: flex; flex-direction: column; gap: 16px;">
+        <form id="form-auth-settings" style="display: flex; flex-direction: column; gap: 16px;" onsubmit="event.preventDefault();">
           <!-- 1. GENERAL -->
           <div style="background: var(--bg-card-hover); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
             <h4 style="font-size: 13px; font-weight: 800; color: var(--primary); margin-bottom: 10px; text-transform: uppercase;">1. GENERAL</h4>
@@ -4264,7 +4264,7 @@ function renderNotifications() {
             </div>
           </div>
 
-          <form id="form-send-push-notification" style="display: flex; flex-direction: column; gap: 14px;">
+          <form id="form-send-push-notification" style="display: flex; flex-direction: column; gap: 14px;" onsubmit="event.preventDefault();">
             <div>
               <label class="form-label">নোটিফিকেশন টাইটেল (Title) *</label>
               <input type="text" id="notif-input-title" class="form-control" placeholder="যেমন: 🔥 নতুন স্কোয়াড টুর্নামেন্ট শুরু হয়েছে!" required />
