@@ -1308,9 +1308,61 @@ function renderAuthControlTab(data) {
 function renderProductsTab(data) {
   const products = data.dynamicProducts || authService.getDynamicProducts();
   const shopProducts = authService.getHomeShopProducts() || [];
+  const promoBanners = authService.getPromoBanners() || [];
 
   return `
     <div class="admin-tab-pane">
+      
+      <!-- PROMO MINI BANNERS (BOTTOM GRID) -->
+      <div style="background: #ffffff; padding: 18px; border-radius: 16px; border: 1.5px solid #cbd5e1; margin-bottom: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <div style="font-size: 15px; font-weight: 800; color: #0f172a;">🎯 Mini Promo Banners</div>
+          <span style="font-size: 11px; background: #e0f2fe; color: #0284c7; padding: 3px 10px; border-radius: 12px; font-weight: 800;">Realtime Sync</span>
+        </div>
+        <p style="font-size: 11.5px; color: #64748b; margin: 0 0 14px 0;">Manage bottom banners (e.g., Telegram, Special Offers). Add as many as you want, they will show in a 2-column grid.</p>
+        
+        <div id="promo-banners-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          ${promoBanners.map((b, i) => `
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; position: relative;">
+              <button class="btn-delete-promo" data-index="${i}" style="position: absolute; top: 6px; right: 6px; background: #fee2e2; color: #dc2626; border: none; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-weight: bold;">✕</button>
+              <div style="margin-bottom: 6px;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b;">Top Text</label>
+                <input type="text" id="pb-top-${i}" value="${b.topText}" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px;" />
+              </div>
+              <div style="margin-bottom: 6px;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b;">Title</label>
+                <input type="text" id="pb-title-${i}" value="${b.title}" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px; font-weight: bold;" />
+              </div>
+              <div style="margin-bottom: 6px;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b;">Subtitle</label>
+                <input type="text" id="pb-sub-${i}" value="${b.subtitle}" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px;" />
+              </div>
+              <div style="margin-bottom: 6px;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b;">Action Route / URL</label>
+                <input type="text" id="pb-url-${i}" value="${b.actionUrl}" placeholder="telegram, offers, topup, or https://..." style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px;" />
+              </div>
+              <div>
+                <label style="font-size: 10px; font-weight: 700; color: #64748b;">Icon Style</label>
+                <select id="pb-icon-${i}" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px;">
+                  <option value="telegram" ${b.iconType === 'telegram' ? 'selected' : ''}>Telegram (Blue)</option>
+                  <option value="gift" ${b.iconType === 'gift' ? 'selected' : ''}>Gift (Yellow)</option>
+                  <option value="flash" ${b.iconType === 'flash' ? 'selected' : ''}>Flash (Red)</option>
+                  <option value="star" ${b.iconType === 'star' ? 'selected' : ''}>Star (Green)</option>
+                </select>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-add-promo" style="flex: 1; background: #e0f2fe; color: #0284c7; font-weight: 800; padding: 10px; border-radius: 8px; border: none; font-size: 12.5px; cursor: pointer;">
+            ➕ Add Banner
+          </button>
+          <button id="btn-save-promo" style="flex: 2; background: #0284c7; color: #ffffff; font-weight: 800; padding: 10px; border-radius: 8px; border: none; font-size: 12.5px; cursor: pointer; box-shadow: 0 4px 10px rgba(2,132,199,0.3);">
+            💾 Save & Sync Promo Banners
+          </button>
+        </div>
+      </div>
+
       
       <!-- FEATURED HOME SHOP DEALS (2 CARDS BELOW FLASH SALE) -->
       <div style="background: #ffffff; padding: 18px; border-radius: 16px; border: 1.5px solid #cbd5e1; margin-bottom: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03);">
@@ -2248,6 +2300,49 @@ export function bindAdminEvents() {
 
     authService.saveHomeShopProducts([p1, p2]);
     Toast.show('🛍️ Featured Shop Deals saved & synced to Cloud Firestore!', 'success');
+  });
+
+  document.getElementById('btn-add-promo')?.addEventListener('click', () => {
+    const banners = authService.getPromoBanners() || [];
+    banners.push({
+      id: 'banner_' + Date.now(),
+      topText: 'NEW',
+      title: 'BANNER',
+      subtitle: 'Description here',
+      actionUrl: 'offers',
+      iconType: 'star'
+    });
+    authService.savePromoBanners(banners);
+    Toast.show('Banner added!', 'success');
+    document.querySelector('.nav-item[data-tab="products"]')?.click();
+  });
+
+  document.getElementById('btn-save-promo')?.addEventListener('click', () => {
+    const banners = authService.getPromoBanners() || [];
+    const updatedBanners = banners.map((b, i) => {
+      return {
+        id: b.id,
+        topText: document.getElementById(`pb-top-${i}`)?.value || b.topText,
+        title: document.getElementById(`pb-title-${i}`)?.value || b.title,
+        subtitle: document.getElementById(`pb-sub-${i}`)?.value || b.subtitle,
+        actionUrl: document.getElementById(`pb-url-${i}`)?.value || b.actionUrl,
+        iconType: document.getElementById(`pb-icon-${i}`)?.value || b.iconType,
+      };
+    });
+    authService.savePromoBanners(updatedBanners);
+    Toast.show('🎯 Promo Banners saved & synced live!', 'success');
+  });
+
+  document.querySelectorAll('.btn-delete-promo').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if(!confirm('Delete this banner?')) return;
+      const index = parseInt(e.target.dataset.index);
+      const banners = authService.getPromoBanners() || [];
+      banners.splice(index, 1);
+      authService.savePromoBanners(banners);
+      Toast.show('Banner removed!', 'success');
+      document.querySelector('.nav-item[data-tab="products"]')?.click();
+    });
   });
 
   // --- AUTHENTICATION CONTROL TAB EVENTS ---

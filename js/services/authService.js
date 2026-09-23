@@ -88,6 +88,28 @@ class AuthService {
     // Subscribe to Auth Settings & Dynamic Products from Cloud Firestore
     this.initAuthSettingsListener();
     this.initDynamicProductsListener();
+    this.initShopProductsListener();
+    this.initPromoBannersListener();
+  }
+
+  initShopProductsListener() {
+    try {
+      firebaseService.subscribeDocument('config', 'shop_products', (data) => {
+        if (data && Array.isArray(data.products)) {
+          this.applyHomeShopProducts(data.products);
+        }
+      });
+    } catch(e) {}
+  }
+
+  initPromoBannersListener() {
+    try {
+      firebaseService.subscribeDocument('config', 'promo_banners', (data) => {
+        if (data && Array.isArray(data.banners)) {
+          this.applyPromoBanners(data.banners);
+        }
+      });
+    } catch(e) {}
   }
 
   initDynamicProductsListener() {
@@ -906,6 +928,38 @@ class AuthService {
     } catch(e) {}
   }
 
+  // --- PROMO BANNERS MANAGEMENT ---
+  getPromoBanners() {
+    const defaults = [
+      { id: 'default1', topText: 'JOIN OUR', title: 'TELEGRAM', subtitle: 'Get Latest Update First', actionUrl: 'telegram', iconType: 'telegram' },
+      { id: 'default2', topText: 'SPECIAL', title: 'OFFERS', subtitle: 'Don\'t Miss Out!', actionUrl: 'offers', iconType: 'gift' }
+    ];
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem('mobinx_promo_banners');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return defaults;
+  }
+
+  applyPromoBanners(banners) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('mobinx_promo_banners', JSON.stringify(banners));
+    }
+    return banners;
+  }
+
+  savePromoBanners(banners) {
+    this.applyPromoBanners(banners);
+    try {
+      firebaseService.saveToFirestore('config', 'promo_banners', { banners });
+      firebaseService.broadcastChange('PROMO_BANNERS_UPDATED', banners);
+    } catch(e) {}
+  }
   // --- HERO BANNERS MANAGEMENT ---
   getHeroBanners() {
     if (typeof localStorage !== 'undefined') {

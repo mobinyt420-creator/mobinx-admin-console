@@ -237,7 +237,7 @@ class RealtimeSyncManager {
       } else if (e.key === 'mobinx_downloads_catalog') {
         downloadService.reloadFromStorage();
         this.triggerViewUpdate('downloads');
-      } else if (e.key === 'mobinx_hero_banners' || e.key === 'mobinx_flash_deals' || e.key === 'mobinx_popular_services' || e.key === 'mobinx_home_shop_products') {
+      } else if (e.key === 'mobinx_hero_banners' || e.key === 'mobinx_flash_deals' || e.key === 'mobinx_popular_services' || e.key === 'mobinx_home_shop_products' || e.key === 'mobinx_promo_banners') {
         this.triggerViewUpdate('home');
       }
     });
