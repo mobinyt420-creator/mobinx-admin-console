@@ -6182,9 +6182,12 @@ function bindCurrentTabEvents() {
       if (!savedServiceAccount && db) {
         const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         const snap = await getDoc(doc(db, 'config', 'fcm_service_account'));
-        if (snap.exists() && snap.data()?.credentials) {
-          savedServiceAccount = snap.data().credentials;
-          localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(savedServiceAccount));
+        if (snap.exists()) {
+          const d = snap.data();
+          savedServiceAccount = d?.credentials || (d?.client_email ? d : null);
+          if (savedServiceAccount) {
+            localStorage.setItem('mobinx_fcm_service_account', JSON.stringify(savedServiceAccount));
+          }
         }
       }
     } catch (e) {
@@ -6275,10 +6278,13 @@ function bindCurrentTabEvents() {
       try {
         const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         const snap = await getDoc(doc(db, 'config', 'fcm_service_account'));
-        if (snap.exists() && snap.data()?.credentials) {
-          sa = snap.data().credentials;
-          savedServiceAccount = sa;
-          updateFcmUI(sa);
+        if (snap.exists()) {
+          const d = snap.data();
+          sa = d?.credentials || (d?.client_email ? d : null);
+          if (sa) {
+            savedServiceAccount = sa;
+            updateFcmUI(sa);
+          }
         }
       } catch (_) {}
     }
