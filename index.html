@@ -1615,6 +1615,12 @@ textarea.form-control {
           <span>Dynamic Products</span>
         </div>
 
+        <div class="nav-item" data-tab="services">
+          <span class="icon">📱</span>
+          <span>Home Services (6 Features)</span>
+          <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">Grid Icons</span>
+        </div>
+
         <div class="menu-label">Community</div>
         <div class="nav-item" data-tab="users">
           <span class="icon">👥</span>
@@ -2024,6 +2030,17 @@ async function initFirebase() {
       }
     }, (err) => console.warn('AdMob settings onSnapshot notice:', err.message));
 
+    // Live Services Grid Listener (6 Main Features)
+    onSnapshot(doc(db, 'config', 'services_grid'), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().services) {
+        state.servicesGrid = docSnap.data().services;
+        setStorage('mobinx_services_grid', state.servicesGrid);
+        if (state.activeTab === 'services') {
+          renderCurrentTab();
+        }
+      }
+    }, (err) => console.warn('ServicesGrid onSnapshot notice:', err.message));
+
     return { app, auth, db, doc, setDoc, deleteDoc, collection, getDocs };
   } catch (err) {
     console.warn('Firebase connection note (operating with local sync bridge):', err.message);
@@ -2201,6 +2218,15 @@ const defaultHomeShopProducts = [
   }
 ];
 
+const defaultServicesGrid = [
+  { id: 'topup', title: 'TOP UP', image: 'assets/images/service_topup.jpg', route: 'topup', desc: 'Diamond Top-Up & Packs' },
+  { id: 'shop', title: 'SHOP', image: 'assets/images/service_shop.jpg', route: 'shop', desc: 'Gaming Gear & In-App Items' },
+  { id: 'downloads', title: 'DOWNLOADS', image: 'assets/images/service_downloads.jpg', route: 'downloads', desc: 'APK & Tools Catalog' },
+  { id: 'tournaments', title: 'TOURNAMENTS', image: 'assets/images/service_tournaments.jpg', route: 'tournaments', desc: 'Esports Scrims & Rooms' },
+  { id: 'sensitivity', title: 'SENSITIVITY MAKER', image: 'assets/images/service_sensitivity.jpg', route: 'sensitivity', desc: 'Headshot DPI & Settings' },
+  { id: 'profile', title: 'PROFILE', image: 'assets/images/service_profile.jpg', route: 'profile', desc: 'Player ID Card & Rewards' }
+];
+
 const defaultAdMobConfig = {
   enabled: true,
   is_test_mode: true,
@@ -2247,6 +2273,7 @@ const state = {
   authSettings: getStorage('mobinx_auth_settings', defaultAuthSettings),
   dynamicProducts: getStorage('mobinx_dynamic_products', defaultDynamicProducts),
   homeShopProducts: getStorage('mobinx_home_shop_products', defaultHomeShopProducts),
+  servicesGrid: getStorage('mobinx_services_grid', defaultServicesGrid),
   admob: getStorage('mobinx_admob_config', defaultAdMobConfig),
   notifications: getStorage('mobinx_admin_notifications', []),
   users: getStorage('mobinx_registered_users', defaultUsers).filter(u => !u.email || !legacyDummyEmails.includes(u.email.toLowerCase().trim())),
@@ -2545,6 +2572,14 @@ function renderOverview() {
             </div>
           </div>
 
+          <div class="quick-action-tile" id="btn-quick-manage-services">
+            <div class="tile-icon" style="color: #38bdf8;">📱</div>
+            <div class="tile-info">
+              <span class="tile-title">Home Services Grid (6 Features)</span>
+              <span class="tile-desc">Customize icons, images & titles</span>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -2597,9 +2632,64 @@ function renderTournaments() {
               </select>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Match Date & Time *</label>
-              <input type="datetime-local" id="new-t-datetime" class="form-control" required />
+            <div class="form-group" style="grid-column: 1 / -1; background: rgba(30, 41, 59, 0.6); padding: 16px; border-radius: 14px; border: 1.5px solid #334155;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                <label class="form-label" style="margin: 0; color: #38bdf8; font-weight: 800; font-size: 13.5px;">
+                  ⏰ Match Schedule (ম্যাচের তারিখ ও সময়) *
+                </label>
+                <span style="font-size: 11px; color: #94a3b8;">মোবাইলে ১-ক্লিকে সিলেক্ট করুন</span>
+              </div>
+
+              <!-- Quick 1-Click Time Preset Pills -->
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 6px;">⚡ কুইক প্রেসীট (Quick 1-Click Schedule):</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;" id="quick-time-presets">
+                  <button type="button" class="btn-time-preset" data-day="today" data-hour="20" data-min="00" style="padding: 7px 13px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(14, 165, 233, 0.15); color: #38bdf8; cursor: pointer; font-weight: 700;">🌙 আজ রাত ৮:০০ PM</button>
+                  <button type="button" class="btn-time-preset" data-day="today" data-hour="21" data-min="00" style="padding: 7px 13px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(14, 165, 233, 0.15); color: #38bdf8; cursor: pointer; font-weight: 700;">🌙 আজ রাত ৯:০০ PM</button>
+                  <button type="button" class="btn-time-preset" data-day="today" data-hour="22" data-min="00" style="padding: 7px 13px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(14, 165, 233, 0.15); color: #38bdf8; cursor: pointer; font-weight: 700;">🌙 আজ রাত ১০:০০ PM</button>
+                  <button type="button" class="btn-time-preset" data-day="tomorrow" data-hour="20" data-min="00" style="padding: 7px 13px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.15); color: #c084fc; cursor: pointer; font-weight: 700;">📅 কাল রাত ৮:০০ PM</button>
+                  <button type="button" class="btn-time-preset" data-day="tomorrow" data-hour="21" data-min="00" style="padding: 7px 13px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.15); color: #c084fc; cursor: pointer; font-weight: 700;">📅 কাল রাত ৯:০০ PM</button>
+                </div>
+              </div>
+
+              <!-- Separate Simple Date & Time Pickers -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                <div>
+                  <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">📅 তারিখ (Match Date)</label>
+                  <input type="date" id="new-t-date-picker" class="form-control" style="background: #0f172a; border-color: #334155; color: #fff;" />
+                </div>
+                <div>
+                  <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">🕐 সময় (Match Time)</label>
+                  <select id="new-t-time-picker" class="form-control" style="background: #0f172a; border-color: #334155; color: #fff;">
+                    <option value="12:00">12:00 PM (Noon)</option>
+                    <option value="13:00">01:00 PM</option>
+                    <option value="14:00">02:00 PM</option>
+                    <option value="15:00">03:00 PM</option>
+                    <option value="16:00">04:00 PM</option>
+                    <option value="17:00">05:00 PM</option>
+                    <option value="18:00">06:00 PM</option>
+                    <option value="18:30">06:30 PM</option>
+                    <option value="19:00">07:00 PM</option>
+                    <option value="19:30">07:30 PM</option>
+                    <option value="20:00" selected>08:00 PM (Prime Evening)</option>
+                    <option value="20:30">08:30 PM</option>
+                    <option value="21:00">09:00 PM (Prime Night)</option>
+                    <option value="21:30">09:30 PM</option>
+                    <option value="22:00">10:00 PM</option>
+                    <option value="22:30">10:30 PM</option>
+                    <option value="23:00">11:00 PM</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Synchronized underlying datetime value -->
+              <input type="hidden" id="new-t-datetime" required />
+
+              <!-- Live Friendly Preview Badge -->
+              <div id="new-t-datetime-preview" style="margin-top: 10px; padding: 10px 14px; background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 10px; font-size: 12.5px; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px;">
+                <span>📅 সিডিউল প্রিভিউ:</span>
+                <span id="preview-schedule-text" style="color: #38bdf8;">আজ রাত ০৮:০০ PM</span>
+              </div>
             </div>
 
             <div class="form-group">
@@ -4420,6 +4510,86 @@ function renderNotifications() {
   `;
 }
 
+// TAB: APP SERVICES GRID (6 FEATURES)
+function renderServicesGrid() {
+  const services = state.servicesGrid || defaultServicesGrid;
+  return `
+    <div class="tab-pane active" id="tab-services">
+      <div class="card" style="border: 1px solid rgba(14, 165, 233, 0.4); background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.7)); margin-bottom: 20px;">
+        <div class="card-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div class="card-title" style="display: flex; align-items: center; gap: 8px;">
+              <span>📱 হোম সার্ভিসেস কন্ট্রোল সেন্টার (6 Main App Features)</span>
+              <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4);">
+                Live App Sync
+              </span>
+            </div>
+            <div class="card-subtitle">হোম স্ক্রিনের ৬টি প্রধান সার্ভিস আইকন (Top Up, Shop, Downloads, Tournaments, Sensitivity, Profile) এর নাম ও ইমেজ পরিবর্তন করুন। ইমেজ লিংক দিতে পারেন অথবা কম্পিউটার/মোবাইল থেকে সরাসরি আপলোড করতে পারেন।</div>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button id="btn-save-services-top" class="btn btn-primary" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+              💾 Save All Changes (সব সেভ করুন)
+            </button>
+            <button id="btn-reset-services-top" class="btn btn-secondary">
+              🔄 Reset to Defaults
+            </button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+          ${services.map((item, idx) => {
+            const fallbackSrc = `assets/images/service_${item.id}.jpg`;
+            return `
+              <div class="card" style="background: rgba(15, 23, 42, 0.85); border: 1.5px solid #1e293b; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; font-weight: 800; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 6px;">#0${idx + 1}</span>
+                    <span style="font-weight: 800; font-size: 14px; color: #fff;">${item.id.toUpperCase()}</span>
+                  </div>
+                  <span style="font-size: 11px; color: #64748b;">Route: <code style="color: #94a3b8;">${item.route}</code></span>
+                </div>
+
+                <div style="display: flex; gap: 14px; align-items: center;">
+                  <div style="width: 84px; height: 84px; border-radius: 18px; overflow: hidden; background: #0b1120; border: 2px solid #334155; flex-shrink: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(0,0,0,0.4); position: relative;">
+                    <img id="svc-prev-${item.id}" src="${item.image}" alt="${item.title}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='${fallbackSrc}';" />
+                  </div>
+                  <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                    <div>
+                      <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">টাইটেল / সার্ভিস নাম (Title)</label>
+                      <input type="text" id="svc-title-${item.id}" class="form-control" value="${escapeHtml(item.title)}" placeholder="যেমন: TOP UP" style="font-weight: 800; font-size: 13.5px;" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">ইমেজ লিংক (Image URL or Path)</label>
+                  <input type="text" id="svc-img-${item.id}" class="form-control" value="${escapeHtml(item.image)}" placeholder="assets/images/... বা https://..." style="font-size: 12px;" />
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                  <label class="btn btn-secondary btn-sm" style="flex: 1; cursor: pointer; text-align: center; margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px;">
+                    <span>📁 ছবি আপলোড করুন</span>
+                    <input type="file" id="svc-upload-${item.id}" accept="image/*" style="display: none;" />
+                  </label>
+                  <button type="button" class="btn btn-secondary btn-sm btn-reset-single-svc" data-id="${item.id}" style="padding: 6px 12px; font-size: 11px;">
+                    🔄 Reset
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px; gap: 10px;">
+          <button id="btn-save-services-bottom" class="btn btn-primary" style="padding: 12px 24px; font-size: 14px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+            💾 Save All Changes (সব সেভ ও অ্যাপে সিঙ্ক করুন)
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ==========================================
 // 8. TAB CONTROLLER & EVENT BINDINGS
 // ==========================================
@@ -4440,6 +4610,10 @@ function renderCurrentTab() {
     case 'products':
       if (title) title.textContent = 'Dynamic Products & Web Services';
       content.innerHTML = renderDynamicProducts();
+      break;
+    case 'services':
+      if (title) title.textContent = 'Home Screen Services Grid (6 Features)';
+      content.innerHTML = renderServicesGrid();
       break;
     case 'tournaments':
       if (title) title.textContent = 'Tournaments & Room Credentials';
@@ -4502,6 +4676,145 @@ function bindCurrentTabEvents() {
   });
   document.getElementById('btn-quick-view-players')?.addEventListener('click', () => {
     document.querySelector('.nav-item[data-tab="users"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-services')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="services"]')?.click();
+  });
+
+  // Tournaments: Simplified Date & Time Presets & Live Sync
+  const dtPicker = document.getElementById('new-t-date-picker');
+  const tmPicker = document.getElementById('new-t-time-picker');
+  const dtHidden = document.getElementById('new-t-datetime');
+  const schedPreview = document.getElementById('preview-schedule-text');
+
+  function syncTournamentDateTime() {
+    if (!dtPicker || !tmPicker || !dtHidden) return;
+    const d = dtPicker.value;
+    const t = tmPicker.value || '20:00';
+    if (d && t) {
+      const combined = `${d}T${t}`;
+      dtHidden.value = combined;
+      try {
+        const dObj = new Date(combined);
+        const isToday = new Date().toDateString() === dObj.toDateString();
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const isTomorrow = tomorrow.toDateString() === dObj.toDateString();
+        let dayStr = isToday ? 'আজ (TODAY)' : (isTomorrow ? 'কাল (TOMORROW)' : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        let timeStr = dObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        if (schedPreview) schedPreview.textContent = `${dayStr} at ${timeStr}`;
+      } catch (_) {}
+    }
+  }
+
+  if (dtPicker && !dtPicker.value) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    dtPicker.value = todayStr;
+    syncTournamentDateTime();
+  }
+
+  dtPicker?.addEventListener('change', syncTournamentDateTime);
+  tmPicker?.addEventListener('change', syncTournamentDateTime);
+
+  document.querySelectorAll('.btn-time-preset')?.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const day = btn.getAttribute('data-day');
+      const hour = parseInt(btn.getAttribute('data-hour'), 10);
+      const min = btn.getAttribute('data-min');
+      const dObj = new Date();
+      if (day === 'tomorrow') dObj.setDate(dObj.getDate() + 1);
+      const yyyy = dObj.getFullYear();
+      const mm = String(dObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dObj.getDate()).padStart(2, '0');
+      if (dtPicker) dtPicker.value = `${yyyy}-${mm}-${dd}`;
+      const timeVal = `${String(hour).padStart(2, '0')}:${min}`;
+      if (tmPicker) tmPicker.value = timeVal;
+      syncTournamentDateTime();
+
+      document.querySelectorAll('.btn-time-preset').forEach(b => {
+        b.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        b.style.transform = 'scale(1)';
+      });
+      btn.style.borderColor = '#38bdf8';
+      btn.style.transform = 'scale(1.04)';
+    });
+  });
+
+  // Home Services Grid: Save All
+  const handleSaveServices = async () => {
+    const services = state.servicesGrid || defaultServicesGrid;
+    const updated = services.map(item => {
+      const titleInput = document.getElementById(`svc-title-${item.id}`);
+      const imgInput = document.getElementById(`svc-img-${item.id}`);
+      return {
+        ...item,
+        title: titleInput ? titleInput.value.trim() : item.title,
+        image: imgInput ? imgInput.value.trim() : item.image,
+      };
+    });
+
+    state.servicesGrid = updated;
+    setStorage('mobinx_services_grid', updated);
+
+    await syncToFirestore('config', 'services_grid', {
+      services: updated,
+      updatedAt: Date.now()
+    });
+
+    broadcastSync('SERVICES_GRID_UPDATED', updated);
+    showToast('✅ হোম সার্ভিসেস সফলভাবে সেভ ও অ্যাপে সিঙ্ক করা হয়েছে!', 'success');
+  };
+
+  document.getElementById('btn-save-services-top')?.addEventListener('click', handleSaveServices);
+  document.getElementById('btn-save-services-bottom')?.addEventListener('click', handleSaveServices);
+
+  // Home Services: Reset All
+  document.getElementById('btn-reset-services-top')?.addEventListener('click', () => {
+    if (confirm('আপনি কি সব সার্ভিস ডিফল্ট অবস্থায় ফিরিয়ে নিতে চান?')) {
+      state.servicesGrid = JSON.parse(JSON.stringify(defaultServicesGrid));
+      setStorage('mobinx_services_grid', state.servicesGrid);
+      renderCurrentTab();
+    }
+  });
+
+  // Home Services: Reset Single Item
+  document.querySelectorAll('.btn-reset-single-svc')?.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      const def = defaultServicesGrid.find(s => s.id === id);
+      if (def) {
+        const titleEl = document.getElementById(`svc-title-${id}`);
+        const imgEl = document.getElementById(`svc-img-${id}`);
+        const prevEl = document.getElementById(`svc-prev-${id}`);
+        if (titleEl) titleEl.value = def.title;
+        if (imgEl) imgEl.value = def.image;
+        if (prevEl) prevEl.src = def.image;
+      }
+    });
+  });
+
+  // Home Services: File Upload & Live Preview
+  defaultServicesGrid.forEach(item => {
+    const fileInput = document.getElementById(`svc-upload-${item.id}`);
+    const imgInput = document.getElementById(`svc-img-${item.id}`);
+    const prevImg = document.getElementById(`svc-prev-${item.id}`);
+    fileInput?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (re) => {
+          const dataUrl = re.target.result;
+          if (imgInput) imgInput.value = dataUrl;
+          if (prevImg) prevImg.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    imgInput?.addEventListener('input', () => {
+      if (prevImg) prevImg.src = imgInput.value.trim() || `assets/images/service_${item.id}.jpg`;
+    });
   });
 
 
