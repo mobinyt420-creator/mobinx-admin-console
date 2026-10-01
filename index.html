@@ -1621,6 +1621,12 @@ textarea.form-control {
           <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">Grid Icons</span>
         </div>
 
+        <div class="nav-item" data-tab="admob">
+          <span class="icon">💰</span>
+          <span>Google AdMob Ads</span>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">Remote IDs</span>
+        </div>
+
         <div class="menu-label">Community</div>
         <div class="nav-item" data-tab="users">
           <span class="icon">👥</span>
@@ -2024,7 +2030,7 @@ async function initFirebase() {
       if (docSnap.exists()) {
         state.admob = { ...state.admob, ...docSnap.data() };
         setStorage('mobinx_admob_config', state.admob);
-        if (state.activeTab === 'downloads') {
+        if (state.activeTab === 'admob' || state.activeTab === 'downloads') {
           renderCurrentTab();
         }
       }
@@ -2231,7 +2237,8 @@ const defaultAdMobConfig = {
   enabled: true,
   is_test_mode: true,
   rewarded_ad_id: 'ca-app-pub-3940256099942544/5224354917',
-  banner_ad_id: 'ca-app-pub-3940256099942544/6300978111'
+  banner_ad_id: 'ca-app-pub-3940256099942544/6300978111',
+  interstitial_ad_id: 'ca-app-pub-3940256099942544/1033173712'
 };
 
 const defaultUsers = [
@@ -2580,6 +2587,14 @@ function renderOverview() {
             </div>
           </div>
 
+          <div class="quick-action-tile" id="btn-quick-manage-admob">
+            <div class="tile-icon" style="color: #10b981;">💰</div>
+            <div class="tile-info">
+              <span class="tile-title">Google AdMob Ads</span>
+              <span class="tile-desc">Switch Test/Real ads & change IDs</span>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -2834,70 +2849,114 @@ function renderTournaments() {
   `;
 }
 
-// TAB 3: APK DOWNLOADS
-function renderDownloads() {
+// TAB: GOOGLE ADMOB MONETIZATION
+function renderAdMobSettings() {
   const admob = state.admob || defaultAdMobConfig;
-  return `
-    <div class="tab-pane active" id="tab-downloads">
+  const isTest = admob.is_test_mode !== false && admob.is_test_mode !== 'false';
+  const isEnabled = admob.enabled !== false && admob.enabled !== 'false';
 
-      <!-- AdMob Remote Control Card -->
-      <div class="card" style="border: 1px solid rgba(59, 130, 246, 0.4); background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.7)); margin-bottom: 20px;">
-        <div class="card-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+  return `
+    <div class="tab-pane active" id="tab-admob">
+      
+      <!-- Top Overview Banner -->
+      <div class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(6, 78, 59, 0.25)); margin-bottom: 20px;">
+        <div class="card-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <div>
             <div class="card-title" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <span>💰 Google AdMob Monetization & Remote Control</span>
-              <span class="badge" style="background: ${admob.enabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${admob.enabled ? '#34d399' : '#f87171'}; border: 1px solid ${admob.enabled ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};">
-                ${admob.enabled ? '● Ads Active' : '○ Ads Disabled'}
+              <span>💰 Google AdMob অ্যাড কন্ট্রোল সেন্টার (Monetization Hub)</span>
+              <span class="badge" style="background: ${isEnabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${isEnabled ? '#34d399' : '#f87171'}; border: 1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};">
+                ${isEnabled ? '● Ads Enabled' : '○ Ads Disabled'}
               </span>
-              <span class="badge" style="background: ${admob.is_test_mode ? 'rgba(245, 158, 11, 0.2)' : 'rgba(59, 130, 246, 0.2)'}; color: ${admob.is_test_mode ? '#fbbf24' : '#60a5fa'}; border: 1px solid ${admob.is_test_mode ? 'rgba(245, 158, 11, 0.4)' : 'rgba(59, 130, 246, 0.4)'};">
-                ${admob.is_test_mode ? '🛡️ Test Mode (Safe)' : '🚀 Real Production Ads'}
+              <span class="badge" style="background: ${isTest ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; color: ${isTest ? '#fbbf24' : '#34d399'}; border: 1px solid ${isTest ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)'};">
+                ${isTest ? '🛡️ Test Mode (Safe Sample Ads)' : '🚀 Live Mode (Real Revenue AdMob Ads)'}
               </span>
             </div>
-            <div class="card-subtitle">One-click toggle ads for self-testing or switch between Google Test IDs and Real Live Ad IDs in real-time without app update.</div>
+            <div class="card-subtitle">এখানে টেস্ট অ্যাড থেকে আসল অ্যাডে (Real Ads) রূপান্তর করুন এবং আপনার আসল AdMob Unit ID বসান। সেভ করামাত্র কোনো অ্যাপ আপডেট ছাড়াই সকল ব্যবহারকারীর ফোনে লাইভ অ্যাড শুরু হয়ে যাবে।</div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" id="btn-quick-switch-real" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+              🚀 Switch to Real Ads (আসল অ্যাড চালু)
+            </button>
+            <button type="button" id="btn-quick-switch-test" class="btn btn-secondary">
+              🛡️ Switch to Test Ads (টেস্ট মোড)
+            </button>
           </div>
         </div>
 
+        <!-- 3 Quick Info Callouts -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px;">
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid #1e293b; border-radius: 12px; padding: 14px;">
+            <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">🎬 REWARDED ADS</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: #f59e0b; margin-top: 4px;">রুম আইডি পাসওয়ার্ড আনলক</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">প্লেয়ার যখন রুম পাসওয়ার্ড বা ডাউনলোড লিংক চাপবে তখন অ্যাড দেখাবে।</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid #1e293b; border-radius: 12px; padding: 14px;">
+            <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">🖼️ BANNER ADS</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: #38bdf8; margin-top: 4px;">স্ক্রিনের নিচের ফিক্সড ব্যানার</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">টুর্নামেন্ট তালিকা ও সেনসিটিভিটি স্ক্রিনের নিচে স্থায়ী ব্যানার অ্যাড।</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid #1e293b; border-radius: 12px; padding: 14px;">
+            <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">⚡ INTERSTITIAL ADS</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: #a78bfa; margin-top: 4px;">ফুল স্ক্রিন ৫ সেকেন্ড স্কিপেবল</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">ম্যাচ ডিটেইলস ক্লিক ও সেনসিটিভিটি জেনারেট বাটনে ক্লিক করলে দেখাবে।</div>
+          </div>
+        </div>
+
+        <!-- AdMob Remote Control Form -->
         <form id="form-admob-settings">
           <div class="form-grid">
             <div class="form-group">
-              <label class="form-label">Ads Master Switch</label>
-              <select id="admob-enabled" class="form-control">
-                <option value="true" ${admob.enabled ? 'selected' : ''}>🟢 Enabled (Show Ads in App)</option>
-                <option value="false" ${!admob.enabled ? 'selected' : ''}>🔴 Disabled (Zero Ads - Clean Mode)</option>
+              <label class="form-label">অ্যাড মাস্টার সুইচ (Ads Master Switch) *</label>
+              <select id="admob-enabled" class="form-control" style="font-weight: 800;">
+                <option value="true" ${isEnabled ? 'selected' : ''}>🟢 Enabled (অ্যাপে বিজ্ঞাপন চালু থাকবে)</option>
+                <option value="false" ${!isEnabled ? 'selected' : ''}>🔴 Disabled (সকল বিজ্ঞাপন বন্ধ - ক্লিন মোড)</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Ad Environment Mode</label>
-              <select id="admob-test-mode" class="form-control">
-                <option value="true" ${admob.is_test_mode ? 'selected' : ''}>🛡️ Test Mode (Safe Google Sample Ads)</option>
-                <option value="false" ${!admob.is_test_mode ? 'selected' : ''}>🚀 Live Mode (Real Revenue AdMob Ads)</option>
+              <label class="form-label">এনভায়রনমেন্ট মোড (Ad Environment Mode) *</label>
+              <select id="admob-test-mode" class="form-control" style="font-weight: 800;">
+                <option value="true" ${isTest ? 'selected' : ''}>🛡️ Test Mode (নিরাপদ গুগল স্যাম্পল টেস্ট অ্যাড)</option>
+                <option value="false" ${!isTest ? 'selected' : ''}>🚀 Live Mode (আসল ইনকাম AdMob বিজ্ঞাপন)</option>
               </select>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Rewarded Video Ad Unit ID (Free Tournaments & Downloads)</label>
-              <input type="text" id="admob-rewarded-id" class="form-control" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy" value="${admob.rewarded_ad_id || ''}" />
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">🎬 Rewarded Video Ad Unit ID (আসল রিওয়ার্ডেড অ্যাড আইডি)</label>
+              <input type="text" id="admob-rewarded-id" class="form-control" placeholder="ca-app-pub-8241003118710445/XXXXXXXXXX" value="${admob.rewarded_ad_id || ''}" style="font-family: monospace;" />
+              <span style="font-size: 11px; color: #64748b; margin-top: 4px; display: block;">গুগল অ্যাডমব ড্যাশবোর্ড থেকে আপনার Rewarded Ad Unit ID কপি করে এখানে বসান।</span>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Banner Ad Unit ID (Tournaments & Sensitivity Screens)</label>
-              <input type="text" id="admob-banner-id" class="form-control" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy" value="${admob.banner_ad_id || ''}" />
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">🖼️ Banner Ad Unit ID (আসল ব্যানার অ্যাড আইডি)</label>
+              <input type="text" id="admob-banner-id" class="form-control" placeholder="ca-app-pub-8241003118710445/YYYYYYYYYY" value="${admob.banner_ad_id || ''}" style="font-family: monospace;" />
+              <span style="font-size: 11px; color: #64748b; margin-top: 4px; display: block;">গুগল অ্যাডমব ড্যাশবোর্ড থেকে আপনার Banner Ad Unit ID কপি করে এখানে বসান।</span>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Interstitial Ad Unit ID (5-6s Skippable Ad)</label>
-              <input type="text" id="admob-interstitial-id" class="form-control" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy" value="${admob.interstitial_ad_id || ''}" />
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">⚡ Interstitial Full-Screen Ad Unit ID (আসল ইন্টারস্টিশিয়াল অ্যাড আইডি)</label>
+              <input type="text" id="admob-interstitial-id" class="form-control" placeholder="ca-app-pub-8241003118710445/ZZZZZZZZZZ" value="${admob.interstitial_ad_id || ''}" style="font-family: monospace;" />
+              <span style="font-size: 11px; color: #64748b; margin-top: 4px; display: block;">গুগল অ্যাডমব ড্যাশবোর্ড থেকে আপনার Interstitial Ad Unit ID কপি করে এখানে বসান।</span>
             </div>
           </div>
 
-          <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
-            <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-              💾 Save AdMob Settings (Sync Live to App)
+          <div style="display: flex; justify-content: flex-end; margin-top: 20px; gap: 10px;">
+            <button type="submit" class="btn btn-primary" style="padding: 13px 28px; font-size: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); font-weight: 800;">
+              💾 Save AdMob Settings (সরাসরি লাইভ অ্যাপে সিঙ্ক করুন)
             </button>
           </div>
         </form>
+
       </div>
+    </div>
+  `;
+}
+
+// TAB 3: APK DOWNLOADS
+function renderDownloads() {
+  return `
+    <div class="tab-pane active" id="tab-downloads">
 
       <!-- Add New Download Form -->
       <div class="card">
@@ -4615,6 +4674,10 @@ function renderCurrentTab() {
       if (title) title.textContent = 'Home Screen Services Grid (6 Features)';
       content.innerHTML = renderServicesGrid();
       break;
+    case 'admob':
+      if (title) title.textContent = 'Google AdMob Monetization & Remote Control';
+      content.innerHTML = renderAdMobSettings();
+      break;
     case 'tournaments':
       if (title) title.textContent = 'Tournaments & Room Credentials';
       content.innerHTML = renderTournaments();
@@ -4679,6 +4742,9 @@ function bindCurrentTabEvents() {
   });
   document.getElementById('btn-quick-manage-services')?.addEventListener('click', () => {
     document.querySelector('.nav-item[data-tab="services"]')?.click();
+  });
+  document.getElementById('btn-quick-manage-admob')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="admob"]')?.click();
   });
 
   // Tournaments: Simplified Date & Time Presets & Live Sync
@@ -4817,6 +4883,60 @@ function bindCurrentTabEvents() {
     });
   });
 
+  // ==========================================
+  // AdMob Settings: Form Submission & Quick Switch
+  // ==========================================
+  const btnQuickReal = document.getElementById('btn-quick-switch-real');
+  const btnQuickTest = document.getElementById('btn-quick-switch-test');
+  const formAdMob = document.getElementById('form-admob-settings');
+
+  btnQuickReal?.addEventListener('click', () => {
+    const selMode = document.getElementById('admob-test-mode');
+    if (selMode) {
+      selMode.value = 'false';
+      showToast('🚀 Switched to Live Production Ad Mode! Click "Save AdMob Settings" to apply.', 'info');
+    }
+  });
+
+  btnQuickTest?.addEventListener('click', () => {
+    const selMode = document.getElementById('admob-test-mode');
+    if (selMode) {
+      selMode.value = 'true';
+      showToast('🛡️ Switched to Safe Test Ad Mode! Click "Save AdMob Settings" to apply.', 'info');
+    }
+  });
+
+  formAdMob?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const isEnabled = document.getElementById('admob-enabled')?.value === 'true';
+    const isTestMode = document.getElementById('admob-test-mode')?.value === 'true';
+    const rewardedId = (document.getElementById('admob-rewarded-id')?.value || '').trim();
+    const bannerId = (document.getElementById('admob-banner-id')?.value || '').trim();
+    const interstitialId = (document.getElementById('admob-interstitial-id')?.value || '').trim();
+
+    state.admob = {
+      ...state.admob,
+      enabled: isEnabled,
+      is_test_mode: isTestMode,
+      rewarded_ad_id: rewardedId,
+      banner_ad_id: bannerId,
+      interstitial_ad_id: interstitialId,
+      updatedAt: Date.now()
+    };
+
+    setStorage('mobinx_admob_config', state.admob);
+    showToast('💾 Saving AdMob configuration to Cloud Firestore...', 'info');
+
+    try {
+      await syncToFirestore('settings', 'admob', state.admob);
+      broadcastSync('ADMOB_SETTINGS_UPDATED', state.admob);
+      showToast('✅ Google AdMob settings successfully synced to all apps!', 'success');
+      renderCurrentTab();
+    } catch (err) {
+      console.error('AdMob save error:', err);
+      showToast('⚠️ Saved locally, but Firestore sync notice: ' + err.message, 'warning');
+    }
+  });
 
   // Tournaments: Mode Pills
   document.querySelectorAll('#mode-btn-group .mode-select-pill').forEach(pill => {
