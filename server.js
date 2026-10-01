@@ -59,7 +59,7 @@ export default function handler(req, res) {
           try { serviceAccount = JSON.parse(serviceAccount); } catch (_) {}
         }
 
-        const topics = ['all', 'all_users', 'mobinx_broadcast', 'obin_broadcast'];
+        const canonicalTopic = 'obin_broadcast';
 
         // 1. Modern FCM HTTP v1 using Service Account JWT
         if (serviceAccount && serviceAccount.client_email && serviceAccount.private_key) {
@@ -108,62 +108,61 @@ export default function handler(req, res) {
           });
 
           const accessToken = tokenData.access_token;
-          const results = await Promise.all(topics.map(topic => {
-            const fcmMsg = {
-              message: {
-                topic: topic,
+          const fcmMsg = {
+            message: {
+              topic: canonicalTopic,
+              notification: {
+                title: notif.title || 'OBIN Official Alert',
+                body: notif.message || notif.desc || ''
+              },
+              data: {
+                title: String(notif.title || 'OBIN Official Alert'),
+                body: String(notif.message || notif.desc || ''),
+                message: String(notif.message || notif.desc || ''),
+                type: String(notif.type || 'general'),
+                targetUrl: String(notif.targetUrl || notif.actionUrl || 'home'),
+                actionUrl: String(notif.actionUrl || notif.targetUrl || 'home'),
+                id: String(notif.id || `notif_${Date.now()}`),
+                broadcastId: String(notif.broadcastId || `bc_${Date.now()}`),
+                timestamp: String(notif.timestamp || Date.now())
+              },
+              android: {
+                priority: 'HIGH',
                 notification: {
-                  title: notif.title || 'OBIN Official Alert',
-                  body: notif.message || notif.desc || ''
-                },
-                data: {
-                  title: String(notif.title || 'OBIN Official Alert'),
-                  body: String(notif.message || notif.desc || ''),
-                  message: String(notif.message || notif.desc || ''),
-                  type: String(notif.type || 'general'),
-                  targetUrl: String(notif.targetUrl || notif.actionUrl || 'home'),
-                  actionUrl: String(notif.actionUrl || notif.targetUrl || 'home'),
-                  id: String(notif.id || `notif_${Date.now()}`),
-                  broadcastId: String(notif.broadcastId || `bc_${Date.now()}`),
-                  timestamp: String(notif.timestamp || Date.now())
-                },
-                android: {
-                  priority: 'HIGH',
-                  notification: {
-                    channel_id: 'mobinx_high_importance_channel',
-                    notification_priority: 'PRIORITY_MAX',
-                    default_sound: true,
-                    default_vibrate_timings: true,
-                    icon: 'ic_stat_obin',
-                    color: '#0284C7',
-                    click_action: 'FLUTTER_NOTIFICATION_CLICK',
-                    visibility: 'PUBLIC'
-                  }
+                  channel_id: 'mobinx_high_importance_channel',
+                  notification_priority: 'PRIORITY_MAX',
+                  tag: 'obin_alert',
+                  default_sound: true,
+                  default_vibrate_timings: true,
+                  icon: 'ic_stat_obin',
+                  color: '#0284C7',
+                  click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                  visibility: 'PUBLIC'
                 }
               }
-            };
-            const postStr = JSON.stringify(fcmMsg);
-            return new Promise(resolve => {
-              const reqMsg = https.request(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Length': Buffer.byteLength(postStr)
-                }
-              }, (resMsg) => {
-                let rd = '';
-                resMsg.on('data', c => { rd += c; });
-                resMsg.on('end', () => { resolve({ topic, status: resMsg.statusCode, body: rd }); });
-              });
-              reqMsg.on('error', err => resolve({ topic, error: err.message }));
-              reqMsg.write(postStr);
-              reqMsg.end();
+            }
+          };
+          const postStr = JSON.stringify(fcmMsg);
+          const result = await new Promise(resolve => {
+            const reqMsg = https.request(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Length': Buffer.byteLength(postStr)
+              }
+            }, (resMsg) => {
+              let rd = '';
+              resMsg.on('data', c => { rd += c; });
+              resMsg.on('end', () => { resolve({ topic: canonicalTopic, status: resMsg.statusCode, body: rd }); });
             });
-          }));
+            reqMsg.on('error', err => resolve({ topic: canonicalTopic, error: err.message }));
+            reqMsg.write(postStr);
+            reqMsg.end();
+          });
 
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: true, protocol: 'fcm_v1', results }));
+          res.end(JSON.stringify({ success: result.status === 200, protocol: 'fcm_v1', result }));
           return;
         }
 
@@ -190,31 +189,29 @@ export default function handler(req, res) {
             }
           };
 
-          const results = await Promise.all(topics.map(topic => {
-            return new Promise(resolve => {
-              const dataStr = JSON.stringify({ ...legacyPayload, to: `/topics/${topic}` });
-              const fcmReq = https.request('https://fcm.googleapis.com/fcm/send', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `key=${serverKey}`,
-                  'Content-Length': Buffer.byteLength(dataStr)
-                }
-              }, (fcmRes) => {
-                let fcmBody = '';
-                fcmRes.on('data', d => { fcmBody += d; });
-                fcmRes.on('end', () => {
-                  resolve({ topic, status: fcmRes.statusCode, body: fcmBody });
-                });
+          const result = await new Promise(resolve => {
+            const dataStr = JSON.stringify({ ...legacyPayload, to: `/topics/${canonicalTopic}` });
+            const fcmReq = https.request('https://fcm.googleapis.com/fcm/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `key=${serverKey}`,
+                'Content-Length': Buffer.byteLength(dataStr)
+              }
+            }, (fcmRes) => {
+              let fcmBody = '';
+              fcmRes.on('data', d => { fcmBody += d; });
+              fcmRes.on('end', () => {
+                resolve({ topic: canonicalTopic, status: fcmRes.statusCode, body: fcmBody });
               });
-              fcmReq.on('error', (err) => resolve({ topic, error: err.message }));
-              fcmReq.write(dataStr);
-              fcmReq.end();
             });
-          }));
+            fcmReq.on('error', (err) => resolve({ topic: canonicalTopic, error: err.message }));
+            fcmReq.write(dataStr);
+            fcmReq.end();
+          });
 
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: true, protocol: 'legacy_fcm', results }));
+          res.end(JSON.stringify({ success: true, protocol: 'legacy_fcm', result }));
           return;
         }
 

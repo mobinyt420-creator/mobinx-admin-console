@@ -94,6 +94,7 @@ async function sendFcmV1Topic(projectId, accessToken, topic, notif) {
         notification: {
           channel_id: 'mobinx_high_importance_channel',
           notification_priority: 'PRIORITY_MAX',
+          tag: 'obin_alert',
           default_sound: true,
           default_vibrate_timings: true,
           icon: 'ic_stat_obin',
@@ -155,6 +156,7 @@ async function sendFcmV1Token(projectId, accessToken, token, notif) {
         notification: {
           channel_id: 'mobinx_high_importance_channel',
           notification_priority: 'PRIORITY_MAX',
+          tag: 'obin_alert',
           default_sound: true,
           default_vibrate_timings: true,
           icon: 'ic_stat_obin',
@@ -248,6 +250,15 @@ export default async function handler(req, res) {
     const notif = payload.notification || payload;
     let serviceAccount = payload.serviceAccount;
 
+    // Check environment variable fallback
+    if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT) {
+      try {
+        serviceAccount = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
+          ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+          : process.env.FIREBASE_SERVICE_ACCOUNT;
+      } catch (_) {}
+    }
+
     // Parse stringified service account JSON if passed as string
     if (typeof serviceAccount === 'string') {
       try {
@@ -255,53 +266,31 @@ export default async function handler(req, res) {
       } catch (_) {}
     }
 
-    if (!serviceAccount || !serviceAccount.client_email || !serviceAccount.private_key) {
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        try {
-          serviceAccount = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
-            ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-            : process.env.FIREBASE_SERVICE_ACCOUNT;
-        } catch (_) {}
-      }
-    }
-
-    const topics = ['all', 'all_users', 'mobinx_broadcast', 'obin_broadcast'];
-
     // 1. If modern Google Service Account is available -> FCM HTTP v1
     if (serviceAccount && serviceAccount.client_email && serviceAccount.private_key) {
       const projectId = serviceAccount.project_id || 'obin-shop';
       const accessToken = await getGoogleOAuth2Token(serviceAccount);
 
-      // Fetch registered device tokens for direct instant delivery
-      const deviceTokens = await fetchFirestoreTokens(projectId, accessToken);
-
-      const topicResults = await Promise.all(
-        topics.map(t => sendFcmV1Topic(projectId, accessToken, t, notif))
-      );
-
-      const tokenResults = await Promise.all(
-        deviceTokens.map(tok => sendFcmV1Token(projectId, accessToken, tok, notif))
-      );
-
-      const allResults = [...topicResults, ...tokenResults];
-      const hasSuccess = allResults.some(r => r.status === 200);
+      // Single canonical topic broadcast reaches all active devices at once with 0 duplicates
+      const canonicalTopic = 'obin_broadcast';
+      const topicResult = await sendFcmV1Topic(projectId, accessToken, canonicalTopic, notif);
 
       return res.status(200).json({
-        success: hasSuccess || topicResults.length > 0,
+        success: topicResult.status === 200,
         protocol: 'fcm_v1',
         projectId,
-        topicsDelivered: topicResults.filter(r => r.status === 200).length,
-        tokensDelivered: tokenResults.filter(r => r.status === 200).length,
-        totalDevicesTargeted: deviceTokens.length,
-        results: allResults
+        topic: canonicalTopic,
+        result: topicResult
       });
     }
 
     // 2. Legacy server key fallback (if passed)
     const serverKey = payload.serverKey || process.env.FCM_SERVER_KEY;
     if (serverKey) {
+      const canonicalTopic = 'obin_broadcast';
       const legacyPayload = {
         priority: 'high',
+        to: `/topics/${canonicalTopic}`,
         notification: {
           title: notif.title || 'OBIN Announcement',
           body: notif.message || notif.desc || '',
@@ -320,38 +309,35 @@ export default async function handler(req, res) {
         }
       };
 
-      const results = await Promise.all(
-        topics.map(topic => {
-          return new Promise(resolve => {
-            const dataStr = JSON.stringify({ ...legacyPayload, to: `/topics/${topic}` });
-            const fcmReq = https.request('https://fcm.googleapis.com/fcm/send', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `key=${serverKey}`,
-                'Content-Length': Buffer.byteLength(dataStr)
-              }
-            }, (fcmRes) => {
-              let fcmBody = '';
-              fcmRes.on('data', d => { fcmBody += d; });
-              fcmRes.on('end', () => {
-                resolve({ topic, status: fcmRes.statusCode, body: fcmBody });
-              });
-            });
-            fcmReq.on('error', (err) => resolve({ topic, error: err.message }));
-            fcmReq.write(dataStr);
-            fcmReq.end();
+      const result = await new Promise(resolve => {
+        const dataStr = JSON.stringify(legacyPayload);
+        const fcmReq = https.request('https://fcm.googleapis.com/fcm/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `key=${serverKey}`,
+            'Content-Length': Buffer.byteLength(dataStr)
+          }
+        }, (fcmRes) => {
+          let fcmBody = '';
+          fcmRes.on('data', d => { fcmBody += d; });
+          fcmRes.on('end', () => {
+            resolve({ topic: canonicalTopic, status: fcmRes.statusCode, body: fcmBody });
           });
-        })
-      );
+        });
+        fcmReq.on('error', (err) => resolve({ topic: canonicalTopic, error: err.message }));
+        fcmReq.write(dataStr);
+        fcmReq.end();
+      });
 
       return res.status(200).json({
         success: true,
         protocol: 'legacy_fcm',
-        results
+        result
       });
     }
 
+    // 3. No service account key passed: return advisory response with instructions
     return res.status(200).json({
       success: false,
       protocol: 'none',
